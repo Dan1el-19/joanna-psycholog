@@ -1,0 +1,46 @@
+{
+  "hosting": {
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/o-mnie",
+        "destination": "/o-mnie.html"
+      },
+      {
+        "source": "/oferta",
+        "destination": "/oferta.html"
+      },
+      {
+        "source": "/umow-wizyte",
+        "destination": "/umow-wizyte.html"
+      },
+      {
+        "source": "/kontakt",
+        "destination": "/kontakt.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/admin.html"
+      },
+      {
+        "source": "/api/**",
+        "function": "api"
+      }
+    ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "eur3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

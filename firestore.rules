@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to appointments collection
+    // In production, you should add proper authentication and authorization
+    match /appointments/{appointmentId} {
+      // Allow anyone to create appointments (for form submissions)
+      allow create: if true;
+      
+      // Only allow authenticated admin users to read and update
+      // For now, allowing read access for development
+      // In production, implement proper authentication
+      allow read, update: if true;
+      
+      // Don't allow deleting appointments
+      allow delete: if false;
+    }
+  }
+}

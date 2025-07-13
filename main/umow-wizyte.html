@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Umów wizytę</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="flex flex-col min-h-screen">
+    <div id="header-container"></div>
+
+    <main class="flex-grow">
+      <section class="bg-background py-16 md:py-24">
+        <div class="container mx-auto px-4">
+          
+          <div class="text-center mb-12">
+            <h2 class="font-display text-4xl md:text-5xl font-bold text-primary" data-aos="fade-up">
+              Umów wizytę
+            </h2>
+            <p class="mt-4 font-sans text-lg text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+              Zrób pierwszy krok w stronę zmiany. Skontaktuj się ze mną, aby umówić wizytę.
+            </p>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-12 items-start">
+            
+            <div data-aos="fade-right">
+              <div class="bg-surface p-8 rounded-lg shadow-lg">
+                <h3 class="font-display text-2xl font-bold text-primary mb-6">Formularz kontaktowy</h3>
+                
+                <form class="space-y-6">
+                  <div>
+                    <label for="name" class="block text-sm font-medium text-primary mb-2">Imię i nazwisko</label>
+                    <input type="text" id="name" name="name" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                  </div>
+                  
+                  <div>
+                    <label for="email" class="block text-sm font-medium text-primary mb-2">Adres e-mail</label>
+                    <input type="email" id="email" name="email" required 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                  </div>
+                  
+                  <div>
+                    <label for="phone" class="block text-sm font-medium text-primary mb-2">Numer telefonu</label>
+                    <input type="tel" id="phone" name="phone" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                  </div>
+                  
+                  <div>
+                    <label for="service" class="block text-sm font-medium text-primary mb-2">Rodzaj usługi</label>
+                    <select id="service" name="service" required 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                      <option value="">Wybierz rodzaj usługi</option>
+                      <option value="terapia-indywidualna">Terapia indywidualna</option>
+                      <option value="terapia-par">Terapia par i małżeństw</option>
+                      <option value="konsultacje-online">Konsultacje online</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label for="preferred-date" class="block text-sm font-medium text-primary mb-2">Preferowany termin</label>
+                    <input type="date" id="preferred-date" name="preferred-date" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                  </div>
+                  
+                  <div>
+                    <label for="preferred-time" class="block text-sm font-medium text-primary mb-2">Preferowana godzina</label>
+                    <select id="preferred-time" name="preferred-time" 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent">
+                      <option value="">Wybierz godzinę</option>
+                      <option value="09:00">09:00</option>
+                      <option value="10:00">10:00</option>
+                      <option value="11:00">11:00</option>
+                      <option value="12:00">12:00</option>
+                      <option value="13:00">13:00</option>
+                      <option value="14:00">14:00</option>
+                      <option value="15:00">15:00</option>
+                      <option value="16:00">16:00</option>
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label for="message" class="block text-sm font-medium text-primary mb-2">Dodatkowe informacje</label>
+                    <textarea id="message" name="message" rows="4" 
+                              placeholder="Opisz krótko, z czym chciałbyś/chciałabyś pracować lub zadaj pytanie..."
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent resize-none"></textarea>
+                  </div>
+                  
+                  <button type="submit" 
+                          class="w-full bg-accent text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-accent/80 transition-colors duration-300">
+                    Wyślij zapytanie
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div data-aos="fade-left" data-aos-delay="200">
+              <div class="bg-surface p-8 rounded-lg shadow-lg mb-8">
+                <h3 class="font-display text-2xl font-bold text-primary mb-4">Informacje praktyczne</h3>
+                
+                <div class="space-y-6">
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Czas wizyty</h4>
+                      <p class="text-secondary">Sesja trwa 50 minut</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12s-1.536.219-2.121.659c-1.172.879-1.172 2.303 0 3.182l.879.659Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Cena</h4>
+                      <p class="text-secondary">150 zł za sesję indywidualną<br>200 zł za sesję par</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Lokalizacja</h4>
+                      <p class="text-secondary">Gabinet przy ul. Przykładowej 15<br>Warszawa</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-1.621-1.621A3 3 0 0 1 14.25 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h9.75a2.25 2.25 0 0 1 2.25 2.25Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Konsultacje online</h4>
+                      <p class="text-secondary">Dostępne przez Zoom, Skype<br>lub Google Meet</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-accent/10 p-6 rounded-lg">
+                <h4 class="font-bold text-primary mb-3">Ważne informacje</h4>
+                <ul class="text-secondary space-y-2 text-sm">
+                  <li>• Odpowiem na Twoje zapytanie w ciągu 24 godzin</li>
+                  <li>• Pierwsza konsultacja może odbyć się już w ciągu tygodnia</li>
+                  <li>• Możliwość odwołania wizyty do 24h przed spotkaniem</li>
+                  <li>• Wszystkie informacje są objęte tajemnicą zawodową</li>
+                </ul>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+    
+    <div id="footer-container"></div>
+    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/appointment.js"></script>
+  </body>
+</html>

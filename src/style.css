@@ -1,0 +1,22 @@
+/* src/style.css - POPRAWNA WERSJA */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Space+Grotesk:wght@700&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  /* Definiujemy nasze wartości jako proste zmienne CSS */
+  --color-background: #F9FAFB; /* Bardzo jasny szary */
+  --color-surface: #FFFFFF;    /* Czysta biel */
+  --color-primary: #1F2937;      /* Ciemny grafit (tekst) */
+  --color-secondary: #6B7281;   /* Średni szary (tekst) */
+  --color-accent: #2563EB;      /* Żywy niebieski */
+  
+  --font-sans: 'Inter', 'sans-serif';
+  --font-display: 'Space Grotesk', 'sans-serif';
+}
+
+body {
+  /* Tutaj nic się nie zmienia - wciąż używamy nazw z motywu Tailwind */
+  @apply bg-background text-primary font-sans;
+}
