@@ -17,7 +17,15 @@
       "Bash(firebase:*)",
       "Bash(git init:*)",
       "Bash(git add:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(npx firebase:*)",
+      "Bash(git push:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(npm run deploy:*)"
     ],
     "deny": []
   }

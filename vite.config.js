@@ -55,16 +55,30 @@ export default defineConfig({
     }),
   ],
 
-  // Konfiguracja dev server dla clean URLs
+  // Konfiguracja dev server
   server: {
-    historyApiFallback: {
-      rewrites: [
-        { from: /^\/o-mnie$/, to: '/main/o-mnie.html' },
-        { from: /^\/oferta$/, to: '/main/oferta.html' },
-        { from: /^\/umow-wizyte$/, to: '/main/umow-wizyte.html' },
-        { from: /^\/kontakt$/, to: '/main/kontakt.html' },
-        { from: /^\/admin$/, to: '/main/admin.html' },
-      ]
+    open: true,
+    middlewareMode: false,
+    // Middleware do obsługi czystych URL-ów
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url;
+        
+        // Przekierowania dla czystych URL-ów
+        const routes = {
+          '/o-mnie': '/main/o-mnie.html',
+          '/oferta': '/main/oferta.html',
+          '/umow-wizyte': '/main/umow-wizyte.html',
+          '/kontakt': '/main/kontakt.html',
+          '/admin': '/main/admin.html'
+        };
+        
+        if (routes[url]) {
+          req.url = routes[url];
+        }
+        
+        next();
+      });
     }
   },
 

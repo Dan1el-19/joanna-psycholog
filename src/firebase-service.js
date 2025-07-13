@@ -181,6 +181,16 @@ class FirebaseService {
       message: data.message?.trim() || ''
     };
   }
+
+  // Helper method to get service display name (kept for compatibility)
+  getServiceName(serviceCode) {
+    const services = {
+      'terapia-indywidualna': 'Terapia indywidualna',
+      'terapia-par': 'Terapia par',
+      'konsultacje-online': 'Konsultacje online'
+    };
+    return services[serviceCode] || serviceCode;
+  }
 }
 
 // Export singleton instance

@@ -60,6 +60,7 @@ class AppointmentBooking {
       const response = await firebaseService.submitAppointment(sanitizedData);
       
       if (response.success) {
+        // Cloud Functions will automatically send confirmation emails
         this.showMessage('Dziękuję! Twoje zgłoszenie zostało wysłane. Skontaktuję się z Tobą w ciągu 24 godzin.', 'success');
         this.form.reset();
       } else {

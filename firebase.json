@@ -9,27 +9,31 @@
     "rewrites": [
       {
         "source": "/o-mnie",
-        "destination": "/o-mnie.html"
+        "destination": "/main/o-mnie.html"
       },
       {
         "source": "/oferta",
-        "destination": "/oferta.html"
+        "destination": "/main/oferta.html"
       },
       {
         "source": "/umow-wizyte",
-        "destination": "/umow-wizyte.html"
+        "destination": "/main/umow-wizyte.html"
       },
       {
         "source": "/kontakt",
-        "destination": "/kontakt.html"
+        "destination": "/main/kontakt.html"
       },
       {
         "source": "/admin",
-        "destination": "/admin.html"
+        "destination": "/main/admin.html"
       },
       {
         "source": "/api/**",
         "function": "api"
+      },
+      {
+        "source": "**",
+        "destination": "/404.html"
       }
     ]
   },

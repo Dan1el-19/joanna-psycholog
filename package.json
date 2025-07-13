@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "firebase deploy"
   },
   "devDependencies": {
     "vite": "^7.0.0"
@@ -22,6 +23,7 @@
     "firebase-functions": "^6.3.2",
     "firebase-tools": "^14.10.1",
     "nodemailer": "^7.0.5",
+    "npm": "^11.4.2",
     "tailwindcss": "^4.1.11"
   }
 }

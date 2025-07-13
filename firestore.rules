@@ -7,13 +7,21 @@ service cloud.firestore {
       // Allow anyone to create appointments (for form submissions)
       allow create: if true;
       
-      // Only allow authenticated admin users to read and update
-      // For now, allowing read access for development
-      // In production, implement proper authentication
+      // Temporarily allow all read/update operations for testing
+      // TODO: Implement proper authentication in production
       allow read, update: if true;
       
       // Don't allow deleting appointments
       allow delete: if false;
+    }
+
+    // Allow write access to mail collection for email triggers
+    match /mail/{emailId} {
+      // Allow creating email documents (for sending emails)
+      allow create: if true;
+      
+      // Don't allow reading, updating, or deleting email documents
+      allow read, update, delete: if false;
     }
   }
 }
