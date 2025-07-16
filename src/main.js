@@ -2,6 +2,7 @@
 
 import AOS from "aos";
 import "aos/dist/aos.css";
+import { authSystem } from './auth.js';
 
 // --- NOWA FUNKCJA DO OBSŁUGI HAMBURGERA ---
 const initMobileMenu = () => {

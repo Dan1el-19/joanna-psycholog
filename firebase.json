@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "joanna-psycholog",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -28,8 +29,16 @@
         "destination": "/main/admin.html"
       },
       {
-        "source": "/api/**",
-        "function": "api"
+        "source": "/polityka-prywatnosci",
+        "destination": "/main/polityka-prywatnosci.html"
+      },
+      {
+        "source": "/schedule-admin",
+        "destination": "/main/schedule-admin.html"
+      },
+      {
+        "source": "/manage-reservation/:token",
+        "destination": "/main/manage-reservation.html"
       },
       {
         "source": "**",
@@ -43,7 +52,7 @@
   },
   "firestore": {
     "database": "(default)",
-    "location": "eur3",
+    "location": "europe-central2",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   }

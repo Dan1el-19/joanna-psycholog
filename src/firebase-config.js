@@ -4,6 +4,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getPerformance } from "firebase/performance";
 
 // Firebase configuration object
 // Get these values from your Firebase project console
@@ -22,20 +23,36 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firestore
 export const db = getFirestore(app);
 
+// Suppress BloomFilter errors in console
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  if (args.some(arg => 
+    typeof arg === 'string' && 
+    arg.includes('BloomFilter error')
+  )) {
+    return; // Suppress BloomFilter errors
+  }
+  originalConsoleError.apply(console, args);
+};
+
 // Initialize Cloud Functions
 export const functions = getFunctions(app);
 
+// Initialize Performance Monitoring
+export const perf = getPerformance(app);
+
 // Connect to emulators in development
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-  // Only connect to emulators if they haven't been connected already
-  try {
-    connectFirestoreEmulator(db, "localhost", 8080);
-    connectFunctionsEmulator(functions, "localhost", 5001);
-  } catch (error) {
-    // Emulators already connected
-    console.log("Firebase emulators already connected");
-  }
-}
+// Commented out to use production Firebase instead of emulators
+// if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+//   // Only connect to emulators if they haven't been connected already
+//   try {
+//     connectFirestoreEmulator(db, "localhost", 8080);
+//     connectFunctionsEmulator(functions, "localhost", 5001);
+//   } catch (error) {
+//     // Emulators already connected
+//     console.log("Firebase emulators already connected");
+//   }
+// }
 
 export default app;
 

@@ -1,97 +1,120 @@
-/**
- * TypeScript types for the email system
- */
-
-export interface EmailAddress {
-  email: string;
-  name?: string;
-}
-
-export interface EmailTemplate {
-  id: string;
+// Simple types for appointment system only
+export interface AppointmentData {
+  id?: string;
   name: string;
-  subject: string;
-  htmlTemplate: string;
-  textTemplate: string;
-  variables: string[];
+  email: string;
+  phone?: string;
+  service: string;
+  preferredDate: string;
+  preferredTime: string;
+  message?: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  createdAt: Date;
+  updatedAt: Date;
+  
+  // Confirmed appointment details
+  confirmedDate?: string;
+  confirmedTime?: string;
+  location?: string;
+  adminNotes?: string;
+  
+  // Payment tracking
+  paymentMethod?: 'paypal' | 'transfer' | 'cash';
+  paymentStatus?: 'pending' | 'paid' | 'failed';
+  paymentDate?: Date;
+  
+  // Session completion
+  sessionCompleted?: boolean;
+  sessionNotes?: string;
+  
+  // Cancellation tracking
+  cancelledAt?: Date;
+  cancelledBy?: 'client' | 'admin';
+  cancellationReason?: string;
+  
+  // Rescheduling tracking
+  originalDate?: string;
+  originalTime?: string;
+  rescheduleCount?: number;
+  
+  // Email tracking
+  confirmationEmailSent?: boolean;
+  approvalEmailSent?: boolean;
+  reminderEmailSent?: boolean;
+  
+  // Pricing info
+  calculatedPrice?: number;
+  basePrice?: number;
+  isFirstSession?: boolean;
+  discount?: number;
+  
+  // Reservation management
+  reservationToken?: string;
+  tokenExpiresAt?: Date;
+}
+
+export interface TimeSlot {
+  date: string;
+  time: string;
+  isAvailable: boolean;
+  appointmentId?: string;
+  isBlocked?: boolean;
+  blockReason?: string;
+}
+
+export interface ScheduleTemplate {
+  id?: string;
+  name: string;
+  description?: string;
+  schedule: WeeklySchedule;
+  createdAt: Date;
+  updatedAt: Date;
+  isDefault?: boolean;
+}
+
+export interface WeeklySchedule {
+  monday: string[];
+  tuesday: string[];
+  wednesday: string[];
+  thursday: string[];
+  friday: string[];
+  saturday: string[];
+  sunday: string[];
+}
+
+export interface MonthlySchedule {
+  id?: string;
+  year: number;
+  month: number;
+  templateId?: string;
+  customSlots: CustomTimeSlot[];
+  blockedSlots: BlockedSlot[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface EmailData {
-  to: EmailAddress | string;
-  cc?: EmailAddress[] | string[];
-  bcc?: EmailAddress[] | string[];
-  subject: string;
-  html?: string;
-  text?: string;
-  templateId?: string;
-  variables?: Record<string, any>;
-  priority?: 'low' | 'normal' | 'high';
-  scheduledFor?: Date;
+export interface CustomTimeSlot {
+  date: string;
+  times: string[];
+  added?: boolean; // true for added, false for removed
 }
 
-export interface EmailLogEntry {
-  emailId: string;
-  recipientEmail: string;
-  subject: string;
-  templateId?: string;
-  status: 'queued' | 'sent' | 'failed' | 'bounced' | 'delivered';
-  error?: string;
-  sentAt?: Date;
-  deliveredAt?: Date;
+export interface BlockedSlot {
+  id?: string;
+  startDate: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+  reason: string;
+  isAllDay?: boolean;
   createdAt: Date;
-  metadata?: Record<string, any>;
 }
 
-export interface UserRegistrationData {
-  uid: string;
-  email: string;
-  displayName?: string;
-  firstName?: string;
-  lastName?: string;
-  registrationDate: Date;
-}
-
-export interface OrderData {
-  orderId: string;
-  customerEmail: string;
-  customerName: string;
-  items: OrderItem[];
-  totalAmount: number;
-  currency: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
+export interface ReservationToken {
+  id?: string;
+  appointmentId: string;
+  token: string;
+  expiresAt: Date;
   createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface OrderItem {
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-}
-
-export interface EmailValidationResult {
-  isValid: boolean;
-  email: string;
-  errors: string[];
-  suggestions?: string[];
-}
-
-export interface EmailServiceResponse {
-  success: boolean;
-  emailId?: string;
-  logId?: string;
-  message: string;
-  error?: string;
-}
-
-export interface ReminderEmailData {
-  customerEmail: string;
-  customerName: string;
-  orderId: string;
-  cartItems: OrderItem[];
-  abandonedAt: Date;
-  reminderCount: number;
+  isUsed?: boolean;
 }

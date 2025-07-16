@@ -70,7 +70,10 @@ export default defineConfig({
           '/oferta': '/main/oferta.html',
           '/umow-wizyte': '/main/umow-wizyte.html',
           '/kontakt': '/main/kontakt.html',
-          '/admin': '/main/admin.html'
+          '/polityka-prywatnosci': '/main/polityka-prywatnosci.html',
+          '/admin': '/main/admin.html',
+          '/schedule-admin': '/main/schedule-admin.html',
+          '/manage-reservation': '/main/manage-reservation.html'
         };
         
         if (routes[url]) {
@@ -92,7 +95,13 @@ export default defineConfig({
         oferta: resolve(__dirname, "main/oferta.html"),
         "umow-wizyte": resolve(__dirname, "main/umow-wizyte.html"),
         kontakt: resolve(__dirname, "main/kontakt.html"),
+        "polityka-prywatnosci": resolve(__dirname, "main/polityka-prywatnosci.html"),
         admin: resolve(__dirname, "main/admin.html"),
+        "admin-appointments": resolve(__dirname, "main/admin-appointments.html"),
+        "admin-schedule": resolve(__dirname, "main/admin-schedule.html"),
+        "admin-settings": resolve(__dirname, "main/admin-settings.html"),
+        "schedule-admin": resolve(__dirname, "main/schedule-admin.html"),
+        "manage-reservation": resolve(__dirname, "main/manage-reservation.html"),
       },
     },
   },

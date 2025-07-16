@@ -25,7 +25,11 @@
       "Bash(git push:*)",
       "Bash(find:*)",
       "Bash(rm:*)",
-      "Bash(npm run deploy:*)"
+      "Bash(npm run deploy:*)",
+      "Bash(npm --prefix functions run build)",
+      "Bash(curl:*)",
+      "WebFetch(domain:myreflection.pl)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }
