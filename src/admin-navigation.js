@@ -1,6 +1,6 @@
 // Admin navigation system
 import { adminAuth } from './admin-auth.js';
-import { firebaseService } from './firebase-service.js';
+// Usunęliśmy stąd statyczny import firebaseService, bo będzie ładowany na żądanie
 
 class AdminNavigation {
   constructor() {
@@ -234,7 +234,6 @@ class AdminNavigation {
   }
 
   getMainContainer() {
-    // Try different possible container IDs
     return document.getElementById('admin-panel') || 
            document.getElementById('schedule-admin') || 
            document.querySelector('main') ||
@@ -270,27 +269,20 @@ class AdminNavigation {
     });
 
     // Set active nav link
-    if (this.currentView === 'appointments') {
-      [navAppointments, navAppointmentsMobile].forEach(nav => {
-        if (nav) {
-          nav.classList.remove('text-gray-500', 'text-gray-600', 'hover:text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-          nav.classList.add('bg-blue-100', 'text-blue-700');
-        }
-      });
-    } else if (this.currentView === 'schedule') {
-      [navSchedule, navScheduleMobile].forEach(nav => {
-        if (nav) {
-          nav.classList.remove('text-gray-500', 'text-gray-600', 'hover:text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-          nav.classList.add('bg-blue-100', 'text-blue-700');
-        }
-      });
-    } else if (this.currentView === 'settings') {
-      [navSettings, navSettingsMobile].forEach(nav => {
-        if (nav) {
-          nav.classList.remove('text-gray-500', 'text-gray-600', 'hover:text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
-          nav.classList.add('bg-blue-100', 'text-blue-700');
-        }
-      });
+    const activeNavs = {
+      appointments: [navAppointments, navAppointmentsMobile],
+      schedule: [navSchedule, navScheduleMobile],
+      services: [navServices, navServicesMobile],
+      settings: [navSettings, navSettingsMobile]
+    };
+
+    if (activeNavs[this.currentView]) {
+        activeNavs[this.currentView].forEach(nav => {
+            if (nav) {
+                nav.classList.remove('text-gray-500', 'text-gray-600', 'hover:text-gray-700', 'hover:text-gray-900', 'hover:bg-gray-100');
+                nav.classList.add('bg-blue-100', 'text-blue-700');
+            }
+        });
     }
   }
 
@@ -302,15 +294,9 @@ class AdminNavigation {
     if (mobileMenu && menuIcon && closeIcon) {
       const isHidden = mobileMenu.classList.contains('hidden');
       
-      if (isHidden) {
-        mobileMenu.classList.remove('hidden');
-        menuIcon.classList.add('hidden');
-        closeIcon.classList.remove('hidden');
-      } else {
-        mobileMenu.classList.add('hidden');
-        menuIcon.classList.remove('hidden');
-        closeIcon.classList.add('hidden');
-      }
+      mobileMenu.classList.toggle('hidden', !isHidden);
+      menuIcon.classList.toggle('hidden', isHidden);
+      closeIcon.classList.toggle('hidden', !isHidden);
     }
   }
 
@@ -342,7 +328,7 @@ class AdminNavigation {
     content.innerHTML = `
       <div class="text-center py-8">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-        <p class="mt-2 text-gray-600">Ładowanie...</p>
+        <p class="mt-2 text-gray-600">Ładowanie widoku: ${view}...</p>
       </div>
     `;
 
@@ -365,7 +351,7 @@ class AdminNavigation {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
           </div>
-          <p class="text-gray-600">Błąd podczas ładowania. Spróbuj ponownie.</p>
+          <p class="text-gray-600">Błąd podczas ładowania widoku. Spróbuj ponownie.</p>
           <button onclick="adminNav.switchToView('${view}')" class="mt-2 text-blue-600 hover:text-blue-800">
             Odśwież
           </button>
@@ -376,95 +362,49 @@ class AdminNavigation {
 
   async loadAppointmentsView() {
     const content = document.getElementById('admin-content');
-    
-    // Create appointments container
     content.innerHTML = `
       <div class="bg-white rounded-lg shadow">
         <div class="px-6 py-4 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900">Zarządzanie wizytami</h2>
           <p class="text-sm text-gray-500">Przeglądaj i zarządzaj rezerwacjami klientów</p>
         </div>
-        
         <div id="appointments-container" class="p-6">
-          <div class="text-center py-8">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="mt-2 text-sm text-gray-600">Ładowanie wizyt...</p>
-          </div>
+          <!-- Content will be injected by initializeAppointmentPanel -->
         </div>
       </div>
     `;
 
-    // Dynamically import and initialize admin panel
     try {
+      // ✅ DYNAMICZNY IMPORT - moduł jest pobierany DOPIERO TERAZ
       const { default: AdminPanel } = await import('./admin-panel.js');
       
-      // Check if admin panel is already initialized
-      if (window.adminPanel && typeof window.adminPanel.loadAppointments === 'function') {
-        // Use existing instance
-        await this.initializeAppointmentPanel();
-      } else {
-        // Create new instance
+      if (!window.adminPanel) {
         window.adminPanel = new AdminPanel();
-        await this.initializeAppointmentPanel();
       }
+      await this.initializeAppointmentPanel();
     } catch (error) {
       console.error('Error loading admin panel:', error);
-      content.innerHTML = `
-        <div class="text-center py-8 text-red-600">
-          <p>Błąd podczas ładowania panelu wizyt</p>
-        </div>
-      `;
+      document.getElementById('appointments-container').innerHTML = `<div class="text-center py-8 text-red-600"><p>Błąd podczas ładowania panelu wizyt.</p></div>`;
     }
   }
 
   async initializeAppointmentPanel() {
-    // Wait a bit for the admin panel to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     const appointmentsContainer = document.getElementById('appointments-container');
     if (appointmentsContainer && window.adminPanel) {
-      // Replace the loading content with admin panel content
       appointmentsContainer.innerHTML = `
         <div class="flex flex-wrap gap-2 mb-6">
-          <button onclick="adminPanel.filterAppointments('all')" 
-                  class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
-            Wszystkie
-          </button>
-          <button onclick="adminPanel.filterAppointments('pending')" 
-                  class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium">
-            Oczekujące
-          </button>
-          <button onclick="adminPanel.filterAppointments('confirmed')" 
-                  class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium">
-            Potwierdzone
-          </button>
-          <button onclick="adminPanel.filterAppointments('completed')" 
-                  class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium">
-            Zakończone
-          </button>
-          <button onclick="adminPanel.filterAppointments('cancelled')" 
-                  class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium">
-            Anulowane
-          </button>
-          <button onclick="adminPanel.filterAppointments('archived')" 
-                  class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium">
-            Archiwum
-          </button>
-          <button onclick="adminPanel.loadAppointments()" 
-                  class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
-            🔄 Odśwież
-          </button>
+          <button onclick="window.adminPanel.filterAppointments('all')" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">Wszystkie</button>
+          <button onclick="window.adminPanel.filterAppointments('pending')" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium">Oczekujące</button>
+          <button onclick="window.adminPanel.filterAppointments('confirmed')" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium">Potwierdzone</button>
+          <button onclick="window.adminPanel.filterAppointments('completed')" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium">Zakończone</button>
+          <button onclick="window.adminPanel.filterAppointments('cancelled')" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium">Anulowane</button>
+          <button onclick="window.adminPanel.filterAppointments('archived')" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium">Archiwum</button>
+          <button onclick="window.adminPanel.loadAppointments()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">🔄 Odśwież</button>
         </div>
-
         <div id="appointments-list" class="space-y-4">
-          <div class="text-center py-8">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="mt-2 text-sm text-gray-600">Ładowanie wizyt...</p>
-          </div>
+          <div class="text-center py-8"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div><p class="mt-2 text-sm text-gray-600">Ładowanie wizyt...</p></div>
         </div>
       `;
-
-      // Load appointments
       if (typeof window.adminPanel.loadAppointments === 'function') {
         await window.adminPanel.loadAppointments();
       }
@@ -476,70 +416,17 @@ class AdminNavigation {
     if (!content) return;
 
     try {
-      // First, import the schedule editor module
-      const scheduleEditorModule = await import('./schedule-editor.js');
-      const scheduleEditor = scheduleEditorModule.default;
+      // ✅ DYNAMICZNY IMPORT - moduł jest pobierany DOPIERO TERAZ
+      const { default: scheduleEditor } = await import('./schedule-editor.js');
       
       // Render basic HTML structure immediately
-      content.innerHTML = `
-        <div class="space-y-6">
-          <!-- Header -->
-          <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div>
-              <h2 class="text-lg font-medium text-gray-900">Edytor harmonogramów</h2>
-              <p class="text-sm text-gray-600">Zarządzaj szablonami harmonogramów i przypisaniami do miesięcy</p>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-2">
-              <button onclick="scheduleEditor.showCreateTemplateModal()" 
-                      class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-                Nowy szablon
-              </button>
-              <button onclick="scheduleEditor.showAssignTemplateModal()" 
-                      class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                Przypisz do miesięcy
-              </button>
-            </div>
-          </div>
-
-          <!-- Templates List -->
-          <div class="bg-white shadow rounded-lg">
-            <div class="px-4 py-5 sm:p-6">
-              <h3 class="text-lg font-medium text-gray-900 mb-4">Szablony harmonogramów</h3>
-              <div id="templates-list">
-                <div class="text-center py-8 text-gray-500">
-                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                  Ładowanie szablonów...
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Template Assignments -->
-          <div class="bg-white shadow rounded-lg">
-            <div class="px-4 py-5 sm:p-6">
-              <h3 class="text-lg font-medium text-gray-900 mb-4">Przypisania szablonów do miesięcy</h3>
-              <div id="assignments-list">
-                <div class="text-center py-8 text-gray-500">
-                  <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
-                  Ładowanie przypisań...
-                </div>
-              </div>
-            </div>
-          </div>
-
-          ${scheduleEditor.renderModals()}
-        </div>
-      `;
+      content.innerHTML = await scheduleEditor.renderScheduleEditor();
       
       // Load data asynchronously after HTML is rendered
       setTimeout(async () => {
         try {
+          // Make sure the instance is globally available for buttons
+          window.scheduleEditor = scheduleEditor;
           await scheduleEditor.loadTemplates();
           await scheduleEditor.loadAssignments();
         } catch (error) {
@@ -549,56 +436,7 @@ class AdminNavigation {
       
     } catch (error) {
       console.error('Error loading schedule editor:', error);
-      content.innerHTML = `
-        <div class="bg-white shadow rounded-lg p-6">
-          <div class="text-center py-8 text-red-600">
-            <p>Błąd podczas ładowania edytora harmonogramów</p>
-          </div>
-        </div>
-      `;
-    }
-  }
-
-  async loadLegacyScheduleView() {
-    const content = document.getElementById('admin-content');
-    
-    // Create schedule container
-    content.innerHTML = `
-      <div class="bg-white rounded-lg shadow">
-        <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900">Zarządzanie grafikiem</h2>
-          <p class="text-sm text-gray-500">Twórz szablony, zarządzaj miesięcznymi grafikami i blokuj terminy</p>
-        </div>
-        
-        <div id="schedule-container" class="p-6">
-          <div class="text-center py-8">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="mt-2 text-sm text-gray-600">Ładowanie grafiku...</p>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Dynamically import and initialize schedule admin
-    try {
-      const { default: ScheduleAdmin } = await import('./schedule-admin.js');
-      
-      // Check if schedule admin is already initialized
-      if (window.scheduleAdmin && typeof window.scheduleAdmin.switchView === 'function') {
-        // Use existing instance
-        await this.initializeSchedulePanel();
-      } else {
-        // Create new instance
-        window.scheduleAdmin = new ScheduleAdmin();
-        await this.initializeSchedulePanel();
-      }
-    } catch (error) {
-      console.error('Error loading schedule admin:', error);
-      content.innerHTML = `
-        <div class="text-center py-8 text-red-600">
-          <p>Błąd podczas ładowania panelu grafiku</p>
-        </div>
-      `;
+      content.innerHTML = `<div class="bg-white shadow rounded-lg p-6"><div class="text-center py-8 text-red-600"><p>Błąd podczas ładowania edytora harmonogramów.</p></div></div>`;
     }
   }
 
@@ -606,10 +444,10 @@ class AdminNavigation {
     const content = document.getElementById('admin-content');
     if (!content) return;
 
-    // Import slot blocking module
     try {
-      const slotBlockingModule = await import('./slot-blocking.js');
-      const slotBlocking = slotBlockingModule.default;
+      // ✅ DYNAMICZNY IMPORT - moduł jest pobierany DOPIERO TERAZ
+      const { default: slotBlocking } = await import('./slot-blocking.js');
+      window.slotBlocking = slotBlocking; // Make it global for buttons
       
       const blockingInterface = await slotBlocking.renderBlockingInterface();
       
@@ -621,27 +459,7 @@ class AdminNavigation {
           <!-- System Settings Section -->
           <div class="bg-white shadow rounded-lg p-4 sm:p-6">
             <h2 class="text-lg font-medium text-gray-900 mb-4">Ustawienia systemu</h2>
-            
             <div class="space-y-4">
-              <div class="border-b border-gray-200 pb-4">
-                <h3 class="text-md font-medium text-gray-700 mb-2">Godziny pracy</h3>
-                <p class="text-sm text-gray-600">Zarządzaj standardowymi godzinami pracy w sekcji Grafik</p>
-              </div>
-              
-              <div class="border-b border-gray-200 pb-4">
-                <h3 class="text-md font-medium text-gray-700 mb-2">Powiadomienia email</h3>
-                <p class="text-sm text-gray-600">Automatyczne powiadomienia są aktywne dla wszystkich nowych rezerwacji</p>
-              </div>
-              
-              <div class="border-b border-gray-200 pb-4">
-                <h3 class="text-md font-medium text-gray-700 mb-2">Cache kalendarza</h3>
-                <button onclick="window.calendarInterface?.refreshCalendar()" 
-                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                  Odśwież cache kalendarza
-                </button>
-                <p class="text-sm text-gray-600 mt-2">Wyczyść cache i odśwież dostępne terminy</p>
-              </div>
-              
               <div class="border-b border-gray-200 pb-4">
                 <h3 class="text-md font-medium text-gray-700 mb-2">Czyszczenie bazy danych</h3>
                 <button onclick="window.adminPanel?.performMaintenanceCleanup()" 
@@ -650,11 +468,10 @@ class AdminNavigation {
                 </button>
                 <p class="text-sm text-gray-600 mt-2">Automatycznie usuwa wizyty starsze niż 12 miesięcy. Ta operacja jest nieodwracalna.</p>
               </div>
-              
               <div>
                 <h3 class="text-md font-medium text-gray-700 mb-2">Informacje o systemie</h3>
                 <div class="text-sm text-gray-600 space-y-1">
-                  <p>Wersja: 1.0.0</p>
+                  <p>Wersja: 2.0.0 (Code Splitting)</p>
                   <p>Ostatnia aktualizacja: ${new Date().toLocaleDateString('pl-PL')}</p>
                   <p>Status Firebase: <span class="text-green-600">Połączony</span></p>
                 </div>
@@ -668,14 +485,8 @@ class AdminNavigation {
       await slotBlocking.loadBlocks();
       
     } catch (error) {
-      console.error('Error loading slot blocking:', error);
-      content.innerHTML = `
-        <div class="bg-white shadow rounded-lg p-6">
-          <div class="text-center py-8 text-red-600">
-            <p>Błąd podczas ładowania ustawień</p>
-          </div>
-        </div>
-      `;
+      console.error('Error loading settings view:', error);
+      content.innerHTML = `<div class="bg-white shadow rounded-lg p-6"><div class="text-center py-8 text-red-600"><p>Błąd podczas ładowania ustawień.</p></div></div>`;
     }
   }
 
@@ -684,7 +495,8 @@ class AdminNavigation {
     if (!content) return;
 
     try {
-      // Get existing services from database
+      // ✅ DYNAMICZNY IMPORT - moduł jest pobierany DOPIERO TERAZ
+      const { default: firebaseService } = await import('./firebase-service.js');
       const services = await firebaseService.getServices();
       
       content.innerHTML = `
@@ -694,13 +506,10 @@ class AdminNavigation {
               <h2 class="text-lg font-medium text-gray-900">Zarządzanie usługami</h2>
               <button onclick="adminNav.showAddServiceModal()" 
                       class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                </svg>
+                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                 Dodaj usługę
               </button>
             </div>
-            
             <div class="overflow-x-auto">
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
@@ -720,98 +529,38 @@ class AdminNavigation {
                       <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.duration} min</td>
                       <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.price ? service.price + ' zł' : '-'}</td>
                       <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <button onclick="adminNav.showEditServiceModal('${service.id}')" 
-                                class="text-blue-600 hover:text-blue-900">Edytuj</button>
-                        <button onclick="adminNav.deleteService('${service.id}')" 
-                                class="text-red-600 hover:text-red-900">Usuń</button>
+                        <button onclick="adminNav.showEditServiceModal('${service.id}')" class="text-blue-600 hover:text-blue-900">Edytuj</button>
+                        <button onclick="adminNav.deleteService('${service.id}')" class="text-red-600 hover:text-red-900">Usuń</button>
                       </td>
                     </tr>
                   `).join('')}
                 </tbody>
               </table>
-              
-              ${services.length === 0 ? `
-                <div class="text-center py-8 text-gray-500">
-                  <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                  </svg>
-                  <p>Brak zdefiniowanych usług</p>
-                  <p class="text-sm">Dodaj pierwszą usługę, aby rozpocząć</p>
-                </div>
-              ` : ''}
+              ${services.length === 0 ? `<div class="text-center py-8 text-gray-500"><svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg><p>Brak zdefiniowanych usług</p><p class="text-sm">Dodaj pierwszą usługę, aby rozpocząć</p></div>` : ''}
             </div>
           </div>
         </div>
-        
-        <!-- Service Modal -->
         <div id="service-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
           <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div class="px-6 py-4 border-b border-gray-200">
-              <h3 id="service-modal-title" class="text-lg font-medium text-gray-900">Dodaj usługę</h3>
-            </div>
-            
+            <div class="px-6 py-4 border-b border-gray-200"><h3 id="service-modal-title" class="text-lg font-medium text-gray-900">Dodaj usługę</h3></div>
             <form id="service-form" class="px-6 py-4 space-y-4">
               <input type="hidden" id="service-id" value="">
-              
-              <div>
-                <label for="service-name" class="block text-sm font-medium text-gray-700">Nazwa usługi *</label>
-                <input type="text" id="service-name" required 
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
-              </div>
-              
-              <div>
-                <label for="service-description" class="block text-sm font-medium text-gray-700">Opis</label>
-                <textarea id="service-description" rows="3" 
-                          class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
-              </div>
-              
-              <div>
-                <label for="service-duration" class="block text-sm font-medium text-gray-700">Czas trwania (minuty) *</label>
-                <input type="number" id="service-duration" required min="15" max="240" step="15" 
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
-              </div>
-              
-              <div>
-                <label for="service-price" class="block text-sm font-medium text-gray-700">Cena (zł)</label>
-                <input type="number" id="service-price" min="0" step="0.01" 
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
-              </div>
-              
-              <div>
-                <label for="service-slug" class="block text-sm font-medium text-gray-700">Identyfikator (slug) *</label>
-                <input type="text" id="service-slug" required pattern="[a-z0-9\-]+" 
-                       placeholder="np. terapia-indywidualna"
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                <p class="text-xs text-gray-500 mt-1">Tylko małe litery, cyfry i myślniki</p>
-              </div>
+              <div><label for="service-name" class="block text-sm font-medium text-gray-700">Nazwa usługi *</label><input type="text" id="service-name" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+              <div><label for="service-description" class="block text-sm font-medium text-gray-700">Opis</label><textarea id="service-description" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea></div>
+              <div><label for="service-duration" class="block text-sm font-medium text-gray-700">Czas trwania (minuty) *</label><input type="number" id="service-duration" required min="15" max="240" step="15" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+              <div><label for="service-price" class="block text-sm font-medium text-gray-700">Cena (zł)</label><input type="number" id="service-price" min="0" step="0.01" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+              <div><label for="service-slug" class="block text-sm font-medium text-gray-700">Identyfikator (slug) *</label><input type="text" id="service-slug" required pattern="[a-z0-9\\-]+" placeholder="np. terapia-indywidualna" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"><p class="text-xs text-gray-500 mt-1">Tylko małe litery, cyfry i myślniki</p></div>
             </form>
-            
             <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-              <button onclick="adminNav.hideServiceModal()" 
-                      class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
-                Anuluj
-              </button>
-              <button onclick="adminNav.saveService()" 
-                      class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
-                Zapisz
-              </button>
+              <button onclick="adminNav.hideServiceModal()" class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Anuluj</button>
+              <button onclick="adminNav.saveService()" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">Zapisz</button>
             </div>
           </div>
         </div>
       `;
-      
     } catch (error) {
       console.error('Error loading services:', error);
-      content.innerHTML = `
-        <div class="bg-white shadow rounded-lg p-6">
-          <div class="text-center py-8 text-red-600">
-            <p>Błąd podczas ładowania usług</p>
-            <button onclick="adminNav.switchToView('services')" class="mt-2 text-blue-600 hover:text-blue-800">
-              Spróbuj ponownie
-            </button>
-          </div>
-        </div>
-      `;
+      content.innerHTML = `<div class="bg-white shadow rounded-lg p-6"><div class="text-center py-8 text-red-600"><p>Błąd podczas ładowania usług</p><button onclick="adminNav.switchToView('services')" class="mt-2 text-blue-600 hover:text-blue-800">Spróbuj ponownie</button></div></div>`;
     }
   }
 
@@ -828,6 +577,7 @@ class AdminNavigation {
 
   async showEditServiceModal(serviceId) {
     try {
+      const { default: firebaseService } = await import('./firebase-service.js');
       const services = await firebaseService.getServices();
       const service = services.find(s => s.id === serviceId);
       
@@ -855,12 +605,12 @@ class AdminNavigation {
   }
 
   hideServiceModal() {
-    const modal = document.getElementById('service-modal');
-    modal.classList.add('hidden');
+    document.getElementById('service-modal').classList.add('hidden');
   }
 
   async saveService() {
     try {
+      const { default: firebaseService } = await import('./firebase-service.js');
       const serviceId = document.getElementById('service-id').value;
       const name = document.getElementById('service-name').value.trim();
       const description = document.getElementById('service-description').value.trim();
@@ -868,47 +618,24 @@ class AdminNavigation {
       const price = parseFloat(document.getElementById('service-price').value) || null;
       const slug = document.getElementById('service-slug').value.trim();
       
-      if (!name || !duration || !slug) {
-        this.showMessage('Wypełnij wszystkie wymagane pola', 'error');
-        return;
-      }
+      if (!name || !duration || !slug) { this.showMessage('Wypełnij wszystkie wymagane pola', 'error'); return; }
+      if (duration < 15 || duration > 240) { this.showMessage('Czas trwania musi być między 15 a 240 minut', 'error'); return; }
+      if (!/^[a-z0-9\-]+$/.test(slug)) { this.showMessage('Identyfikator może zawierać tylko małe litery, cyfry i myślniki', 'error'); return; }
       
-      if (duration < 15 || duration > 240) {
-        this.showMessage('Czas trwania musi być między 15 a 240 minut', 'error');
-        return;
-      }
-      
-      if (!/^[a-z0-9\-]+$/.test(slug)) {
-        this.showMessage('Identyfikator może zawierać tylko małe litery, cyfry i myślniki', 'error');
-        return;
-      }
-      
-      const serviceData = {
-        name,
-        description: description || null,
-        duration,
-        price,
-        id: slug
-      };
+      const serviceData = { name, description: description || null, duration, price, id: slug };
       
       if (serviceId && serviceId !== slug) {
-        // ID changed, need to delete old and create new
         await firebaseService.deleteService(serviceId);
         await firebaseService.addService(serviceData);
       } else if (serviceId) {
-        // Update existing
         await firebaseService.updateService(serviceId, serviceData);
       } else {
-        // Add new
         await firebaseService.addService(serviceData);
       }
       
       this.hideServiceModal();
       this.showMessage('Usługa została zapisana', 'success');
-      
-      // Reload services view
       await this.loadServicesView();
-      
     } catch (error) {
       console.error('Error saving service:', error);
       this.showMessage('Błąd podczas zapisywania usługi', 'error');
@@ -916,63 +643,16 @@ class AdminNavigation {
   }
 
   async deleteService(serviceId) {
-    if (!confirm('Czy na pewno chcesz usunąć tę usługę? Ta operacja jest nieodwracalna.')) {
-      return;
-    }
+    if (!confirm('Czy na pewno chcesz usunąć tę usługę? Ta operacja jest nieodwracalna.')) return;
     
     try {
+      const { default: firebaseService } = await import('./firebase-service.js');
       await firebaseService.deleteService(serviceId);
       this.showMessage('Usługa została usunięta', 'success');
-      
-      // Reload services view
       await this.loadServicesView();
-      
     } catch (error) {
       console.error('Error deleting service:', error);
       this.showMessage('Błąd podczas usuwania usługi', 'error');
-    }
-  }
-
-  async initializeSchedulePanel() {
-    // Wait a bit for the schedule admin to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const scheduleContainer = document.getElementById('schedule-container');
-    if (scheduleContainer && window.scheduleAdmin) {
-      // Replace the loading content with schedule admin content
-      scheduleContainer.innerHTML = `
-        <div class="border-b border-gray-200 mb-6">
-          <nav class="flex space-x-8">
-            <button id="templates-tab" 
-                    onclick="scheduleAdmin.switchView('templates')"
-                    class="py-4 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm">
-              Szablony grafików
-            </button>
-            <button id="monthly-tab" 
-                    onclick="scheduleAdmin.switchView('monthly')"
-                    class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
-              Grafik miesięczny
-            </button>
-            <button id="blocked-tab" 
-                    onclick="scheduleAdmin.switchView('blocked')"
-                    class="py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
-              Blokady terminów
-            </button>
-          </nav>
-        </div>
-        
-        <div id="schedule-content">
-          <div class="text-center py-8">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-            <p class="mt-2 text-sm text-gray-600">Ładowanie...</p>
-          </div>
-        </div>
-      `;
-
-      // Load initial schedule view
-      if (typeof window.scheduleAdmin.loadTemplatesView === 'function') {
-        await window.scheduleAdmin.loadTemplatesView();
-      }
     }
   }
 
@@ -983,29 +663,22 @@ class AdminNavigation {
         window.location.href = '/';
       } catch (error) {
         console.error('Error during logout:', error);
-        // Force redirect even if logout fails
         window.location.href = '/';
       }
     }
   }
 
-  // Helper method to show messages
   showMessage(message, type = 'info') {
     const messageDiv = document.createElement('div');
-    messageDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-      type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 
-      type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
-      'bg-blue-100 text-blue-800 border border-blue-200'
-    }`;
+    const typeClasses = {
+      success: 'bg-green-100 text-green-800 border border-green-200',
+      error: 'bg-red-100 text-red-800 border border-red-200',
+      info: 'bg-blue-100 text-blue-800 border border-blue-200'
+    };
+    messageDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${typeClasses[type] || typeClasses.info}`;
     messageDiv.innerHTML = message;
-
     document.body.appendChild(messageDiv);
-
-    setTimeout(() => {
-      if (messageDiv.parentNode) {
-        messageDiv.remove();
-      }
-    }, 5000);
+    setTimeout(() => messageDiv.remove(), 5000);
   }
 }
 

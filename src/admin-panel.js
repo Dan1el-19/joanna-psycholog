@@ -243,6 +243,7 @@ class AdminPanel {
     listContainer.innerHTML = appointmentCards.join('');
   }
 
+  // w pliku admin-panel.js
   async renderAppointmentCard(appointment) {
     const statusColors = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -270,149 +271,113 @@ class AdminPanel {
       failed: 'Błąd płatności'
     };
 
-    // POBIERANIE USŁUG I CEN Z BAZY DANYCH
-    let serviceName = appointment.service;
-    let servicePrice = null;
-    let serviceDuration = 50; // domyślny czas
-    
-    try {
-  const services = await firebaseService.getServices();
-  console.log('Dostępne usługi:', services);
-  
-  const serviceObj = services.find(s => s.id === appointment.service);
-  
-  if (serviceObj) {
-    serviceName = serviceObj.name || serviceName;
-    servicePrice = serviceObj.price || null;
-    serviceDuration = serviceObj.duration || 50;
-    console.log(`Znaleziono usługę: ${serviceName}, cena: ${servicePrice}`);
-  }
-} catch (error) {
-  console.error('Błąd podczas pobierania usług z bazy danych:', error);
-}
+    // Ta linijka jest poprawna - pobiera wszystkie dane do jednego obiektu
+    const augmentedData = await pricingService.getAugmentedAppointmentData(appointment);
 
-    // DYNAMICZNA KALKULACJA CENY NA PODSTAWIE BAZY DANYCH
-    let priceDisplay = '';
-    if (servicePrice) {
-      if (appointment.isFirstSession) {
-        const discountedPrice = Math.round(servicePrice * 0.5);
-        priceDisplay = `
-          <p class="text-xs md:text-sm text-blue-600">
-            <strong>Cena:</strong> ${discountedPrice} PLN 
-            <span class="text-green-600">(50% zniżki - pierwsze spotkanie)</span>
-            <br><span class="text-xs text-gray-500">Cena regularna: ${servicePrice} PLN</span>
-          </p>
-        `;
-      } else {
-        priceDisplay = `
-          <p class="text-xs md:text-sm text-blue-600">
-            <strong>Cena:</strong> ${servicePrice} PLN
-          </p>
-        `;
-      }
-    }
-
+    // PONIŻEJ ZNAJDUJE SIĘ CAŁY, KOMPLETNY I POPRAWIONY SZABLON
     return `
       <div class="bg-gray-50 p-3 sm:p-4 md:p-6 rounded-lg border">
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 sm:mb-4 gap-2 sm:gap-3">
           <div class="flex-1 min-w-0">
-            <h3 class="text-sm sm:text-base md:text-lg font-semibold text-primary truncate">${appointment.name}</h3>
-            <p class="text-xs sm:text-sm text-gray-600 truncate">${appointment.email}</p>
+            <h3 class="text-sm sm:text-base md:text-lg font-semibold text-primary truncate">${augmentedData.name}</h3>
+            <p class="text-xs sm:text-sm text-gray-600 truncate">${augmentedData.email}</p>
           </div>
-          <span class="px-2 py-1 rounded-full text-xs font-medium border ${statusColors[appointment.status]} self-start flex-shrink-0">
-            ${statusLabels[appointment.status]}
+          <span class="px-2 py-1 rounded-full text-xs font-medium border ${statusColors[augmentedData.status]} self-start flex-shrink-0">
+            ${statusLabels[augmentedData.status]}
           </span>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
           <div class="space-y-1 sm:space-y-2">
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Usługa:</strong> <span class="break-words">${serviceName}</span></p>
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowany termin:</strong> ${appointment.preferredDate || 'Nie podano'}</p>
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowana godzina:</strong> ${appointment.preferredTime || 'Nie podano'}</p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Usługa:</strong> <span class="break-words">${augmentedData.serviceName}</span></p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowany termin:</strong> ${augmentedData.preferredDate || 'Nie podano'}</p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowana godzina:</strong> ${augmentedData.preferredTime || 'Nie podano'}</p>
           </div>
           <div class="space-y-1 sm:space-y-2">
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Zgłoszenie:</strong> ${appointment.createdAt?.toLocaleDateString('pl-PL') || 'Nieznana data'}</p>
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Ostatnia aktualizacja:</strong> ${appointment.updatedAt?.toLocaleDateString('pl-PL') || 'Nieznana data'}</p>
-            ${appointment.sessionCompleted ? `
-              <p class="text-xs md:text-sm text-green-600"><strong>Sesja odbyła się:</strong> ${appointment.sessionCompletedDate ? (appointment.sessionCompletedDate.toDate ? appointment.sessionCompletedDate.toDate().toLocaleDateString('pl-PL') : new Date(appointment.sessionCompletedDate).toLocaleDateString('pl-PL')) : 'Tak'}</p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Zgłoszenie:</strong> ${augmentedData.createdAt?.toLocaleDateString('pl-PL') || 'Nieznana data'}</p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Ostatnia aktualizacja:</strong> ${augmentedData.updatedAt?.toLocaleDateString('pl-PL') || 'Nieznana data'}</p>
+            ${augmentedData.sessionCompleted ? `
+              <p class="text-xs md:text-sm text-green-600"><strong>Sesja odbyła się:</strong> ${augmentedData.sessionCompletedDate ? (augmentedData.sessionCompletedDate.toDate ? augmentedData.sessionCompletedDate.toDate().toLocaleDateString('pl-PL') : new Date(augmentedData.sessionCompletedDate).toLocaleDateString('pl-PL')) : 'Tak'}</p>
             ` : ''}
-            ${priceDisplay}
-            ${appointment.paymentStatus ? `
+            
+            ${augmentedData.priceDisplayHTML}
+
+            ${augmentedData.paymentStatus ? `
               <p class="text-xs md:text-sm">
                 <strong>Status płatności:</strong> 
-                <span class="px-2 py-1 rounded-full text-xs font-medium ${paymentStatusColors[appointment.paymentStatus]}">
-                  ${paymentLabels[appointment.paymentStatus]}
+                <span class="px-2 py-1 rounded-full text-xs font-medium ${paymentStatusColors[augmentedData.paymentStatus]}">
+                  ${paymentLabels[augmentedData.paymentStatus]}
                 </span>
               </p>
             ` : ''}
-            ${appointment.paymentMethod ? `
-              <p class="text-xs md:text-sm text-gray-600"><strong>Metoda płatności:</strong> ${appointment.paymentMethod}</p>
+            ${augmentedData.paymentMethod ? `
+              <p class="text-xs md:text-sm text-gray-600"><strong>Metoda płatności:</strong> ${augmentedData.paymentMethod}</p>
             ` : ''}
           </div>
         </div>
 
-        ${appointment.message ? `
+        ${augmentedData.message ? `
           <div class="mb-3 sm:mb-4">
             <p class="text-xs sm:text-sm text-gray-600 mb-2"><strong>Wiadomość:</strong></p>
-            <p class="text-xs sm:text-sm text-gray-700 bg-white p-2 sm:p-3 rounded border break-words">${appointment.message}</p>
+            <p class="text-xs sm:text-sm text-gray-700 bg-white p-2 sm:p-3 rounded border break-words">${augmentedData.message}</p>
           </div>
         ` : ''}
 
-        ${appointment.notes ? `
+        ${augmentedData.notes ? `
           <div class="mb-4">
             <p class="text-xs md:text-sm text-gray-600 mb-2"><strong>Notatki:</strong></p>
-            <p class="text-xs md:text-sm text-gray-700 bg-white p-3 rounded border break-words">${appointment.notes}</p>
+            <p class="text-xs md:text-sm text-gray-700 bg-white p-3 rounded border break-words">${augmentedData.notes}</p>
           </div>
         ` : ''}
 
-        <div class="flex flex-col sm:flex-row gap-2">
-          ${appointment.status === 'pending' ? `
-            <button onclick="adminPanel.updateAppointmentStatus('${appointment.id}', 'confirmed')" 
+        <div class="flex flex-wrap gap-2">
+          ${augmentedData.status === 'pending' ? `
+            <button onclick="adminPanel.updateAppointmentStatus('${augmentedData.id}', 'confirmed')" 
                     class="px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-xs sm:text-sm">
               Potwierdź
             </button>
           ` : ''}
           
-          ${appointment.status === 'confirmed' && !appointment.sessionCompleted ? `
-            <button onclick="adminPanel.markSessionCompleted('${appointment.id}')" 
+          ${augmentedData.status === 'confirmed' && !augmentedData.sessionCompleted ? `
+            <button onclick="adminPanel.markSessionCompleted('${augmentedData.id}')" 
                     class="px-3 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-xs sm:text-sm">
               Oznacz jako odbyła się
             </button>
           ` : ''}
           
-          ${appointment.status !== 'cancelled' && appointment.status !== 'completed' ? `
-            <button onclick="adminPanel.updateAppointmentStatus('${appointment.id}', 'cancelled')" 
+          ${augmentedData.status !== 'cancelled' && augmentedData.status !== 'completed' ? `
+            <button onclick="adminPanel.updateAppointmentStatus('${augmentedData.id}', 'cancelled')" 
                     class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-xs sm:text-sm">
               Anuluj
             </button>
           ` : ''}
           
-          ${appointment.paymentStatus !== 'paid' && appointment.status !== 'cancelled' ? `
-            <button onclick="adminPanel.showPaymentDialog('${appointment.id}', '${appointment.paymentStatus || 'pending'}', '${appointment.paymentMethod || ''}')" 
+          ${augmentedData.paymentStatus !== 'paid' && augmentedData.status !== 'cancelled' ? `
+            <button onclick="adminPanel.showPaymentDialog('${augmentedData.id}', '${augmentedData.paymentStatus || 'pending'}', '${augmentedData.paymentMethod || ''}')" 
                     class="px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-xs sm:text-sm">
               Płatność
             </button>
           ` : ''}
           
-          <button onclick="adminPanel.showNotesDialog('${appointment.id}', '${appointment.notes || ''}')" 
+          <button onclick="adminPanel.showNotesDialog('${augmentedData.id}', '${augmentedData.notes || ''}')" 
                   class="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs sm:text-sm">
-            ${appointment.notes ? 'Edytuj notatki' : 'Dodaj notatki'}
+            ${augmentedData.notes ? 'Edytuj notatki' : 'Dodaj notatki'}
           </button>
           
-          ${(appointment.status === 'confirmed' || appointment.status === 'pending') && appointment.status !== 'completed' ? `
-            <button onclick="adminPanel.showRescheduleDialog('${appointment.id}', '${appointment.preferredDate}', '${appointment.preferredTime}')" 
+          ${(augmentedData.status === 'confirmed' || augmentedData.status === 'pending') && augmentedData.status !== 'completed' ? `
+            <button onclick="adminPanel.showRescheduleDialog('${augmentedData.id}', '${augmentedData.preferredDate}', '${augmentedData.preferredTime}')" 
                     class="px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs md:text-sm">
               Przełóż
             </button>
           ` : ''}
           
-          ${!appointment.isArchived ? `
-            <button onclick="adminPanel.archiveAppointment('${appointment.id}')" 
+          ${!augmentedData.isArchived ? `
+            <button onclick="adminPanel.archiveAppointment('${augmentedData.id}')" 
                     class="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-xs sm:text-sm">
               Archiwizuj
             </button>
           ` : `
-            <button onclick="adminPanel.unarchiveAppointment('${appointment.id}')" 
+            <button onclick="adminPanel.unarchiveAppointment('${augmentedData.id}')" 
                     class="px-3 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 transition-colors text-xs sm:text-sm">
               Przywróć
             </button>

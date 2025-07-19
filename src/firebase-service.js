@@ -218,11 +218,9 @@ class FirebaseService {
       // Sprawdź cache
       const now = Date.now();
       if (this.servicesCache && (now - this.servicesCacheTimestamp) < this.servicesCacheTimeout) {
-        console.log('Używam cache dla usług');
         return this.servicesCache;
       }
       
-      console.log('Pobieram usługi z bazy danych...');
       const servicesSnapshot = await getDocs(collection(db, 'services'));
       const services = servicesSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -233,7 +231,6 @@ class FirebaseService {
       this.servicesCache = services;
       this.servicesCacheTimestamp = now;
       
-      console.log('Pobrano usługi:', services);
       return services;
     } catch (error) {
       console.error('Error fetching services:', error);

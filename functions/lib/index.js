@@ -12,9 +12,6 @@ const firestore_2 = require("firebase-admin/firestore");
 // Initialize Firebase Admin
 (0, app_1.initializeApp)();
 const db = (0, firestore_2.getFirestore)();
-/**
- * Send appointment confirmation email when appointment is created
- */
 exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
     document: 'appointments/{appointmentId}',
     region: 'europe-central2'
@@ -28,25 +25,24 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             return;
         }
         console.log('Sending appointment confirmation for:', appointmentId);
-        // Calculate pricing for this appointment with enhanced service data
-        const pricing = await calculatePricing(appointmentData.service, appointmentData.email);
-        // Generate reservation token
+        // UŻYWAMY NASZEJ NOWEJ FUNKCJI
+        const augmentedData = await getAugmentedAppointmentData(appointmentData);
+        // Generujemy token
         const reservationToken = generateUniqueToken();
         const tokenExpiresAt = new Date();
-        tokenExpiresAt.setMonth(tokenExpiresAt.getMonth() + 6); // 6 months
-        // Store pricing information and token in the appointment document
+        tokenExpiresAt.setMonth(tokenExpiresAt.getMonth() + 6);
+        // Zapisujemy wzbogacone dane w bazie
         await ((_b = event.data) === null || _b === void 0 ? void 0 : _b.ref.update({
-            calculatedPrice: pricing.finalPrice,
-            originalServicePrice: pricing.basePrice, // Original price from service
-            basePrice: pricing.basePrice, // Keep for compatibility
-            isFirstSession: pricing.isFirstSession,
-            discount: pricing.discount,
-            discountAmount: pricing.basePrice - pricing.finalPrice,
+            calculatedPrice: augmentedData.calculatedPrice,
+            originalServicePrice: augmentedData.originalServicePrice,
+            basePrice: augmentedData.basePrice, // Dla kompatybilności
+            isFirstSession: augmentedData.isFirstSession,
+            discount: augmentedData.discount,
+            discountAmount: augmentedData.discountAmount,
             pricingCalculatedAt: firestore_2.FieldValue.serverTimestamp(),
             reservationToken,
             tokenExpiresAt: firestore_2.Timestamp.fromDate(tokenExpiresAt)
         }));
-        // Store token in separate collection
         await db.collection('reservationTokens').add({
             appointmentId,
             token: reservationToken,
@@ -54,68 +50,53 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             createdAt: firestore_2.FieldValue.serverTimestamp(),
             isUsed: false
         });
-        // Use service name from pricing calculation (already fetched from database)
-        const serviceName = pricing.serviceName;
-        // Send confirmation email to client
+        // Tworzymy maile używając danych z `augmentedData`
         const clientEmailDoc = {
-            to: appointmentData.email,
+            to: augmentedData.email,
             message: {
                 subject: 'Potwierdzenie zgłoszenia - Joanna Rudzińska Psycholog',
                 html: `
             <h2>Dziękuję za zgłoszenie!</h2>
-            <p>Dzień dobry ${appointmentData.name},</p>
+            <p>Dzień dobry ${augmentedData.name},</p>
             <p>Otrzymałam Państwa zgłoszenie wizyty. Poniżej znajdą Państwo szczegóły:</p>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
               <h3 style="color: #007bff; margin-top: 0;">Szczegóły wizyty</h3>
-              <p><strong>Usługa:</strong> ${serviceName}</p>
-              <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate || 'Do uzgodnienia'}</p>
-              <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime || 'Do uzgodnienia'}</p>
-              ${appointmentData.phone ? `<p><strong>Telefon:</strong> ${appointmentData.phone}</p>` : ''}
-              ${appointmentData.message ? `<p><strong>Dodatkowe informacje:</strong> ${appointmentData.message}</p>` : ''}
+              <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
+              <p><strong>Preferowana data:</strong> ${augmentedData.preferredDate || 'Do uzgodnienia'}</p>
+              <p><strong>Preferowana godzina:</strong> ${augmentedData.preferredTime || 'Do uzgodnienia'}</p>
             </div>
             
             <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
               <h3 style="color: #155724; margin-top: 0;">Cena wizyty</h3>
-              <p style="font-size: 18px; margin: 0;"><strong>Koszt: ${pricing.finalPrice} PLN</strong></p>
-              ${pricing.isFirstSession ? `
+              <p style="font-size: 18px; margin: 0;"><strong>Koszt: ${augmentedData.finalPrice} PLN</strong></p>
+              ${augmentedData.isFirstSession ? `
                 <p style="color: #28a745; font-weight: bold; margin: 10px 0;">🎉 Pierwsze spotkanie - 50% zniżki!</p>
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${serviceName}: ${pricing.basePrice} PLN</p>
+                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
               ` : `
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${serviceName}: ${pricing.basePrice} PLN</p>
+                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
               `}
             </div>
             
-            <p><strong>Następne kroki:</strong></p>
-            <p>Skontaktuję się z Państwem w ciągu 24 godzin w celu ustalenia ostatecznego terminu spotkania.</p>
+            <p><strong>Następne kroki:</strong> Skontaktuję się z Państwem w ciągu 24 godzin w celu ustalenia ostatecznego terminu spotkania.</p>
             
             <div style="background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-              <h3 style="color: #1976d2; margin-top: 0;">🔗 Zarządzanie rezerwacją</h3>
-              <p style="margin: 10px 0;">Możesz sprawdzić status swojej wizyty, zmienić termin lub anulować rezerwację klikając w poniższy link:</p>
               <p style="text-align: center; margin: 15px 0;">
-                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" 
-                   style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                   Zarządzaj rezerwacją
                 </a>
               </p>
-              <p style="font-size: 12px; color: #666; margin: 10px 0;">
-                Link ważny przez 6 miesięcy. Zachowaj ten email do momentu odbycia wizyty.
-              </p>
             </div>
             
-            <p>Serdecznie pozdrawiam,<br>
-            <strong>Joanna Rudzińska</strong><br>
-            Psycholog<br>
-            📧 j.rudzinska@myreflection.pl</p>
+            <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
           `,
-                text: `Dziękuję za zgłoszenie wizyty ${serviceName}. Cena: ${pricing.finalPrice} PLN${pricing.isFirstSession ? ' (pierwsze spotkanie - 50% zniżki)' : ''}. Skontaktuję się w ciągu 24h.`
             }
         };
         // Send notification email to therapist
         const therapistEmailDoc = {
             to: 'j.rudzinska@myreflection.pl',
             message: {
-                subject: `Nowa wizyta: ${appointmentData.name} - ${serviceName}`,
+                subject: `Nowa wizyta: ${augmentedData.name} - ${augmentedData.serviceName}`,
                 html: `
             <h2>Nowa wizyta - ${appointmentData.name}</h2>
             
@@ -128,10 +109,10 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
               <h3>Szczegóły wizyty:</h3>
-              <p><strong>Usługa:</strong> ${serviceName}</p>
+              <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
               <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate}</p>
               <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime}</p>
-              <p><strong>Cena:</strong> ${pricing.finalPrice} PLN ${pricing.isFirstSession ? '(pierwsze spotkanie - 50% taniej)' : '(standardowa cena)'}</p>
+              <p><strong>Cena:</strong> ${augmentedData.finalPrice} PLN ${augmentedData.isFirstSession ? '(pierwsze spotkanie - 50% taniej)' : '(standardowa cena)'}</p>
               ${appointmentData.message ? `<p><strong>Dodatkowe informacje:</strong> ${appointmentData.message}</p>` : ''}
             </div>
             
@@ -140,12 +121,11 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
                 text: `Nowa wizyta od ${appointmentData.name} (${appointmentData.email}) na ${appointmentData.preferredDate} o ${appointmentData.preferredTime}`
             }
         };
-        // Add emails to mail collection (triggers extension)
+        // Wysyłamy maile i aktualizujemy status
         await Promise.all([
             db.collection('mail').add(clientEmailDoc),
             db.collection('mail').add(therapistEmailDoc)
         ]);
-        // Update appointment with email status
         await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.ref.update({
             confirmationEmailSent: true,
             confirmationEmailSentAt: firestore_2.FieldValue.serverTimestamp()
@@ -253,18 +233,40 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
     }
 });
 /**
- * Helper function to get service display name from database (enhanced)
+ * Pobiera pełne, wzbogacone dane wizyty.
+ * Centralne miejsce dla logiki pobierania usług i kalkulacji ceny na backendzie.
+ * @param {object} appointmentData Surowe dane wizyty z dokumentu Firestore.
+ * @returns {Promise<object>} Obiekt z wszystkimi danymi potrzebnymi do zapisu w bazie i wysłania maila.
  */
-async function getServiceName(serviceCode) {
-    const serviceData = await getServiceData(serviceCode);
-    return (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || serviceCode;
-}
-/**
- * Helper function to get service duration from database (enhanced)
- */
-async function getServiceDuration(serviceCode) {
-    const serviceData = await getServiceData(serviceCode);
-    return (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
+async function getAugmentedAppointmentData(appointmentData) {
+    // Pobieramy podstawowe dane z dokumentu wizyty
+    const { service, email } = appointmentData;
+    // 1. Pobierz dane usługi (korzystając z istniejącej funkcji pomocniczej getServiceData)
+    const serviceData = await getServiceData(service);
+    const basePrice = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.price) || 150; // Cena bazowa z fallbackiem
+    const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || service;
+    const serviceDuration = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
+    // 2. Sprawdź, czy to pierwsza sesja (korzystając z istniejącej funkcji pomocniczej hasCompletedSession)
+    const hasCompletedBefore = await hasCompletedSession(email);
+    const isFirstSession = !hasCompletedBefore;
+    // 3. Oblicz ostateczną cenę
+    const finalPrice = isFirstSession ? Math.round(basePrice * 0.5) : basePrice;
+    const discountAmount = isFirstSession ? basePrice - finalPrice : 0;
+    // 4. Zwróć jeden, spójny, wzbogacony obiekt
+    return {
+        ...appointmentData, // Zachowaj wszystkie oryginalne dane
+        // Dodaj wzbogacone dane
+        serviceName,
+        serviceDuration,
+        basePrice,
+        finalPrice,
+        isFirstSession,
+        discount: isFirstSession ? 50 : 0,
+        discountAmount,
+        // Pola do zapisu w bazie
+        calculatedPrice: finalPrice,
+        originalServicePrice: basePrice,
+    };
 }
 /**
  * Check if user has completed sessions before
@@ -289,13 +291,21 @@ async function hasCompletedSession(email) {
 async function getServiceData(serviceId) {
     try {
         const servicesSnapshot = await db.collection('services').get();
-        const services = servicesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        // Mapujemy dokumenty, jawnie tworząc obiekt zgodny z interfejsem Service
+        const services = servicesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name || '', // Dajemy domyślne wartości na wypadek braku danych
+                price: data.price || 0,
+                duration: data.duration || 50
+            };
+        });
         console.log('Dostępne usługi:', services);
-        const serviceObj = services.find((s) => s.id === serviceId);
+        // Teraz TypeScript wie, że 's' jest typu Service, więc nie potrzebujemy ': any'
+        const serviceObj = services.find(s => s.id === serviceId);
         if (serviceObj) {
+            // Błędów już nie ma! TypeScript wie, że te pola istnieją.
             console.log(`Znaleziono usługę: ${serviceObj.name}, cena: ${serviceObj.price}`);
             return {
                 name: serviceObj.name || serviceId,
@@ -308,25 +318,6 @@ async function getServiceData(serviceId) {
         console.error('Błąd podczas pobierania usług z bazy danych:', error);
     }
     return null;
-}
-/**
- * Calculate pricing based on service and user history (enhanced with admin panel logic)
- */
-async function calculatePricing(service, email) {
-    // Pobierz dane usługi z bazy danych
-    const serviceData = await getServiceData(service);
-    let basePrice = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.price) || 150; // Default price tylko jeśli nie ma w bazie
-    const hasCompletedBefore = await hasCompletedSession(email);
-    const isFirstSession = !hasCompletedBefore;
-    const finalPrice = isFirstSession ? Math.round(basePrice * 0.5) : basePrice;
-    return {
-        basePrice,
-        finalPrice,
-        isFirstSession,
-        discount: isFirstSession ? 50 : 0,
-        serviceName: (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || service,
-        serviceDuration: (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50
-    };
 }
 /**
  * Generate unique token for reservation management

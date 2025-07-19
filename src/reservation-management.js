@@ -2,6 +2,7 @@
 import scheduleService from './schedule-service.js';
 import firebaseService from './firebase-service.js';
 import { publicAuth } from './public-auth.js';
+import pricingService from './pricing-service.js'
 
 class ReservationManagement {
   constructor() {
@@ -133,26 +134,7 @@ class ReservationManagement {
       completed: 'Zakończona'
     };
 
-    // POPRAWIONA LOGIKA POBIERANIA USŁUG I CEN
-    let serviceName = this.appointment.service;
-    let serviceDuration = 50; // domyślny czas
-    let servicePrice = null;
-    
-    try {
-  const services = await firebaseService.getServices();
-  console.log('Dostępne usługi:', services);
-  
-  const serviceObj = services.find(s => s.id === this.appointment.service);
-  
-  if (serviceObj) {
-    serviceName = serviceObj.name || serviceName;
-    servicePrice = serviceObj.price || null;
-    serviceDuration = serviceObj.duration || 50;
-    console.log(`Znaleziono usługę: ${serviceName}, cena: ${servicePrice}`);
-  }
-} catch (error) {
-  console.error('Błąd podczas pobierania usług z bazy danych:', error);
-}
+    const augmentedData = await pricingService.getAugmentedAppointmentData(this.appointment);
 
     container.innerHTML = `
       <div class="max-w-3xl mx-auto">
