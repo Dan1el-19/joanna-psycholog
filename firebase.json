@@ -37,8 +37,8 @@
         "destination": "/main/schedule-admin.html"
       },
       {
-        "source": "/manage-reservation/:token",
-        "destination": "/main/manage-reservation.html"
+        "source": "/manage-reservation/**",
+        "destination": "/src/manage-reservation.html"
       },
       {
         "source": "**",

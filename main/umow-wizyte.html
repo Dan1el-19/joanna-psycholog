@@ -46,10 +46,7 @@
                     <label for="service" class="block text-sm font-medium text-primary mb-2">Rodzaj usługi</label>
                     <select id="service" name="service" required 
                             class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
-                      <option value="">Wybierz rodzaj usługi</option>
-                      <option value="terapia-indywidualna">Terapia Indywidualna (150 PLN / 50 min)</option>
-                      <option value="terapia-par">Terapia Par (220 PLN / 90 min)</option>
-                      <option value="terapia-rodzinna">Terapia Rodzinna (230 PLN / 90 min)</option>
+                      <option value="">Ładowanie usług...</option>
                     </select>
                   </div>
                   
@@ -111,7 +108,7 @@
                     </svg>
                     <div>
                       <h4 class="font-bold text-primary">Czas spotkania</h4>
-                      <p class="text-secondary"> Terapia: <br> Indywidualna: 50 min<br>Par/Rodzinna: 90 min</p>
+                      <p id="service-durations" class="text-secondary">Ładowanie informacji...</p>
                     </div>
                   </div>
                   
@@ -121,11 +118,8 @@
                     </svg>
                     <div>
                       <h4 class="font-bold text-primary">Cena</h4>
-                      <p class="text-secondary">
-                        150 PLN - Terapia Indywidualna<br>
-                        220 PLN - Terapia Par<br>
-                        230 PLN - Terapia Rodzinna<br>
-                        <span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>
+                      <p id="service-prices" class="text-secondary">
+                        Ładowanie informacji...
                       </p>
                     </div>
                   </div>
@@ -160,5 +154,96 @@
     <script type="module" src="/src/main.js"></script>
     <script type="module" src="/src/calendar-interface.js"></script>
     <script type="module" src="/src/appointment.js"></script>
+    <script type="module">
+      import { firebaseService } from '/src/firebase-service.js';
+      import { publicAuth } from '/src/public-auth.js';
+      
+      async function loadServicesIntoForm() {
+        try {
+          // Ensure user is authenticated (anonymously) before accessing services
+          await publicAuth.ensureAuthenticated();
+          
+          const services = await firebaseService.getServices();
+          const serviceSelect = document.getElementById('service');
+          const serviceDurations = document.getElementById('service-durations');
+          const servicePrices = document.getElementById('service-prices');
+          
+          if (services.length === 0) {
+            // Fallback to hardcoded services if none found in database
+            serviceSelect.innerHTML = `
+              <option value="">Wybierz rodzaj usługi</option>
+              <option value="terapia-indywidualna">Terapia Indywidualna (150 PLN / 50 min)</option>
+              <option value="terapia-par">Terapia Par (220 PLN / 90 min)</option>
+              <option value="terapia-rodzinna">Terapia Rodzinna (230 PLN / 90 min)</option>
+            `;
+            
+            serviceDurations.innerHTML = 'Terapia: <br> Indywidualna: 50 min<br>Par/Rodzinna: 90 min';
+            servicePrices.innerHTML = `
+              150 PLN - Terapia Indywidualna<br>
+              220 PLN - Terapia Par<br>
+              230 PLN - Terapia Rodzinna<br>
+              <span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>
+            `;
+            return;
+          }
+          
+          // Populate service select with dynamic services
+          const optionsHtml = services.map(service => {
+            const priceText = service.price ? `${service.price} PLN / ${service.duration} min` : `${service.duration} min`;
+            return `<option value="${service.id}">${service.name} (${priceText})</option>`;
+          }).join('');
+          
+          serviceSelect.innerHTML = `
+            <option value="">Wybierz rodzaj usługi</option>
+            ${optionsHtml}
+          `;
+          
+          // Update duration information
+          const durationList = services.map(service => `${service.name}: ${service.duration} min`).join('<br>');
+          serviceDurations.innerHTML = durationList || 'Skontaktuj się w celu uzyskania informacji';
+          
+          // Update pricing information
+          const priceList = services.map(service => {
+            if (service.price) {
+              return `${service.price} PLN - ${service.name}`;
+            } else {
+              return `${service.name} - cena do uzgodnienia`;
+            }
+          }).join('<br>');
+          
+          const hasPrice = services.some(service => service.price);
+          servicePrices.innerHTML = `
+            ${priceList}
+            ${hasPrice ? '<br><span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>' : ''}
+          `;
+          
+        } catch (error) {
+          console.error('Error loading services:', error);
+          
+          // Fallback to hardcoded services on error
+          const serviceSelect = document.getElementById('service');
+          const serviceDurations = document.getElementById('service-durations');
+          const servicePrices = document.getElementById('service-prices');
+          
+          serviceSelect.innerHTML = `
+            <option value="">Wybierz rodzaj usługi</option>
+            <option value="terapia-indywidualna">Terapia Indywidualna (150 PLN / 50 min)</option>
+            <option value="terapia-par">Terapia Par (220 PLN / 90 min)</option>
+            <option value="terapia-rodzinna">Terapia Rodzinna (230 PLN / 90 min)</option>
+          `;
+          
+          serviceDurations.innerHTML = 'Terapia: <br> Indywidualna: 50 min<br>Par/Rodzinna: 90 min';
+          servicePrices.innerHTML = `
+            150 PLN - Terapia Indywidualna<br>
+            220 PLN - Terapia Par<br>
+            230 PLN - Terapia Rodzinna<br>
+            <span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>
+          `;
+        }
+      }
+      
+      // Load services when page loads
+      document.addEventListener('DOMContentLoaded', loadServicesIntoForm);
+    </script>
   </body>
 </html>

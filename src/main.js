@@ -1,8 +1,4 @@
-// src/main.js - WERSJA Z POPRAWIONYM HAMBURGEREM
-
-import AOS from "aos";
-import "aos/dist/aos.css";
-import { authSystem } from './auth.js';
+// src/main.js - Main application entry point
 
 // --- NOWA FUNKCJA DO OBSŁUGI HAMBURGERA ---
 const initMobileMenu = () => {
@@ -49,10 +45,19 @@ const initializePage = async () => {
     loadComponent("#footer-container", "/partials/_footer.html"),
   ]);
 
-  AOS.init({
-    duration: 700,
-    once: true,
-  });
+  // Lazy load AOS only when needed
+  const initAOS = async () => {
+    const { default: AOS } = await import("aos");
+    await import("aos/dist/aos.css");
+    
+    AOS.init({
+      duration: 700,
+      once: true,
+    });
+  };
+  
+  // Initialize AOS after a delay to improve initial load performance
+  setTimeout(initAOS, 100);
 };
 
 document.addEventListener("DOMContentLoaded", initializePage);

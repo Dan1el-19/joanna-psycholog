@@ -1,0 +1,3 @@
+## Memories
+
+- igoruj bład favicon

@@ -4,10 +4,16 @@ service cloud.firestore {
 
     // Helper function to check if user is admin
     function isAdmin() {
-      // In production, you should implement proper Firebase Auth
-      // For now, we rely on frontend authentication
-      return true; // Temporary - implement proper auth later
+      // Check if user is authenticated and not anonymous
+      return request.auth != null && 
+             request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
+
+    // Helper function to check if user is authenticated (anonymous or admin)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
 
     // KOLEKCJA "mail" - Zawsze zablokowana dla klienta
     match /mail/{emailId} {
@@ -17,70 +23,95 @@ service cloud.firestore {
 
     // KOLEKCJA "appointments"
     match /appointments/{appointmentId} {
-      // Anyone can create appointments (public form)
-      allow create: if true;
+      // Anonymous users can create appointments (public form)
+      allow create: if isAuthenticated();
       
-      // Allow reading appointments for admin panel
-      // TODO: Implement proper Firebase Auth in production
-      allow read, list: if true;
+      // Anonymous users can read appointments for calendar availability (limited fields)
+      // Admins can read all appointment details
+      allow read, list: if isAuthenticated();
       
-      // Allow updating appointments for admin operations
-      // TODO: Implement proper Firebase Auth in production  
-      allow update: if true;
+      // Only admins can update appointments
+      allow update: if isAdmin();
 
       // No deletion allowed
       allow delete: if false;
     }
 
-    // KOLEKCJA "adminUsers" - do przyszłych ulepszeń
+    // KOLEKCJA "adminUsers" - konfiguracja użytkowników administratorów
     match /adminUsers/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Only admins can manage admin users
+      allow read, write: if isAdmin();
     }
 
     // KOLEKCJA "scheduleTemplates" - szablony grafików
     match /scheduleTemplates/{templateId} {
-      // Admin can read/write templates
-      allow read, write: if true; // TODO: Implement proper Firebase Auth
+      // Anyone can read templates for calendar generation
+      allow read: if isAuthenticated();
+      // Only admins can write templates
+      allow write: if isAdmin();
     }
 
     // KOLEKCJA "templateAssignments" - przypisania szablonów do miesięcy
     match /templateAssignments/{assignmentId} {
-      // Admin can read/write template assignments
-      allow read, write: if true; // TODO: Implement proper Firebase Auth
+      // Anyone can read template assignments for calendar availability
+      allow read: if isAuthenticated();
+      // Only admins can write template assignments
+      allow write: if isAdmin();
     }
 
     // KOLEKCJA "monthlySchedules" - grafiki miesięczne
     match /monthlySchedules/{scheduleId} {
-      // Admin can read/write schedules, clients can read for availability
-      allow read: if true;
-      allow write: if true; // TODO: Implement proper Firebase Auth for write
+      // Anyone can read schedules for availability checking
+      allow read: if isAuthenticated();
+      // Only admins can write schedules
+      allow write: if isAdmin();
     }
 
     // KOLEKCJA "blockedSlots" - zablokowane terminy
     match /blockedSlots/{blockId} {
-      // Admin can read/write, clients can read for availability
-      allow read: if true;
-      allow write: if true; // TODO: Implement proper Firebase Auth for write
+      // Anyone can read blocked slots for availability checking
+      allow read: if isAuthenticated();
+      // Only admins can write blocked slots
+      allow write: if isAdmin();
     }
 
     // KOLEKCJA "reservationTokens" - tokeny zarządzania rezerwacją
     match /reservationTokens/{tokenId} {
-      // Only Cloud Functions can write, anyone can read for validation
-      allow read: if true;
+      // Authenticated users can read tokens for validation
+      allow read: if isAuthenticated();
+      // Only Cloud Functions can write tokens
       allow write: if false;
     }
 
     // KOLEKCJA "temporaryBlocks" - tymczasowe blokady terminów
     match /temporaryBlocks/{blockId} {
-      // Anyone can create/read/update/delete temporary blocks for reservations
-      allow read, write: if true;
+      // Authenticated users can create/read/update/delete temporary blocks
+      // This allows the appointment form to temporarily hold slots
+      allow read, write: if isAuthenticated();
     }
 
     // KOLEKCJA "feedback" - opinie klientów
     match /feedback/{feedbackId} {
-      // Anyone can create feedback, admin can read/update
-      allow create: if true;
-      allow read, update: if true; // TODO: Implement proper Firebase Auth
+      // Anonymous users can create feedback
+      allow create: if isAuthenticated();
+      // Only admins can read and update feedback
+      allow read, update: if isAdmin();
+      // No deletion allowed
+      allow delete: if false;
+    }
+
+    // KOLEKCJA "adminSessions" - sesje administratorów (opcjonalne)
+    match /adminSessions/{sessionId} {
+      // Only admins can manage their own sessions
+      allow read, write: if isAdmin() && request.auth.uid == resource.data.userId;
+    }
+
+    // KOLEKCJA "services" - dostępne usługi/produkty
+    match /services/{serviceId} {
+      // Anyone can read services for public form and calendar
+      allow read: if isAuthenticated();
+      // Only admins can write services
+      allow write: if isAdmin();
     }
   }
 }

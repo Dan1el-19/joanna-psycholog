@@ -137,16 +137,13 @@ class ScheduleAdmin {
 
   async loadTemplatesView() {
     try {
-      console.log('Loading templates...'); // DEBUG
       const result = await scheduleService.getScheduleTemplates();
-      console.log('Templates result:', result); // DEBUG
       
       if (!result.success) {
         throw new Error(result.message || 'Failed to load templates');
       }
       
       const templates = result.templates || [];
-      console.log('Templates:', templates); // DEBUG
 
       const content = document.getElementById('schedule-content');
       content.innerHTML = `

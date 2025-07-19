@@ -29,7 +29,9 @@
       "Bash(npm --prefix functions run build)",
       "Bash(curl:*)",
       "WebFetch(domain:myreflection.pl)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cp:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }

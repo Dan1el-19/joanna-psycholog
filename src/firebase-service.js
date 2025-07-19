@@ -24,13 +24,17 @@ class FirebaseService {
     this.blockDuration = 10 * 60 * 1000; // 10 minutes in milliseconds
     this.slotsCache = new Map(); // Cache for available slots - UPDATED v1.1
     this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+    this.blockingOperations = new Map(); // Mutex for blocking operations
+    this.servicesCache = null; // Cache dla usług
+    this.servicesCacheTimeout = 5 * 60 * 1000; // 5 minut cache
+    this.servicesCacheTimestamp = 0;
   }
 
   // Submit appointment using Firestore directly
   async submitAppointmentDirect(appointmentData, sessionId = null) {
-    const perfTrace = trace(perf, 'submitAppointment');
-    perfTrace.start();
-    perfTrace.putAttribute('service', appointmentData.service || 'unknown');
+    const perfTrace = perf ? trace(perf, 'submitAppointment') : null;
+    perfTrace?.start();
+    perfTrace?.putAttribute('service', appointmentData.service || 'unknown');
     
     try {
       // Check for double booking with duration consideration before submitting
@@ -60,8 +64,8 @@ class FirebaseService {
         await this.removeTemporaryBlock(sessionId);
       }
       
-      perfTrace.putAttribute('success', 'true');
-      perfTrace.stop();
+      perfTrace?.putAttribute('success', 'true');
+      perfTrace?.stop();
       return {
         success: true,
         appointmentId: docRef.id,
@@ -69,45 +73,16 @@ class FirebaseService {
       };
     } catch (error) {
       console.error('Error submitting appointment:', error);
-      perfTrace.putAttribute('error', 'true');
-      perfTrace.stop();
+      perfTrace?.putAttribute('error', 'true');
+      perfTrace?.stop();
       throw new Error(error.message || 'Failed to submit appointment');
     }
   }
 
   // Submit appointment using Cloud Function (recommended for email notifications)
   async submitAppointment(appointmentData, sessionId = null) {
-    try {
-      // Use the REST API approach as fallback
-      const response = await fetch('/api/appointments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...appointmentData,
-          sessionId
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      // Remove temporary block after successful booking
-      if (sessionId && result.success) {
-        await this.removeTemporaryBlock(sessionId);
-      }
-      
-      return result;
-    } catch (error) {
-      console.log('API endpoint not available, using direct Firestore (this is normal):', error.message);
-      // Fallback to direct Firestore if API fails - this is the expected flow
-      return await this.submitAppointmentDirect(appointmentData, sessionId);
-    }
+    // Use direct Firestore approach - no need for REST API endpoint
+    return await this.submitAppointmentDirect(appointmentData, sessionId);
   }
 
   // Get appointments (admin function)
@@ -216,7 +191,19 @@ class FirebaseService {
   }
 
   // Get therapy duration in minutes based on service type
-  getTherapyDuration(service) {
+  async getTherapyDuration(service) {
+    try {
+      // Try to get duration from database first
+      const services = await this.getServices();
+      const serviceObj = services.find(s => s.id === service);
+      if (serviceObj) {
+        return serviceObj.duration;
+      }
+    } catch (error) {
+      console.warn('Could not load services from database, using defaults:', error);
+    }
+    
+    // Fallback to hardcoded durations
     const durations = {
       'terapia-indywidualna': 50, // 50 minutes
       'terapia-par': 90,         // 90 minutes  
@@ -225,11 +212,111 @@ class FirebaseService {
     return durations[service] || 50; // Default to 50 minutes
   }
 
+  // Get all services from database
+  async getServices() {
+    try {
+      // Sprawdź cache
+      const now = Date.now();
+      if (this.servicesCache && (now - this.servicesCacheTimestamp) < this.servicesCacheTimeout) {
+        console.log('Używam cache dla usług');
+        return this.servicesCache;
+      }
+      
+      console.log('Pobieram usługi z bazy danych...');
+      const servicesSnapshot = await getDocs(collection(db, 'services'));
+      const services = servicesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Zapisz w cache
+      this.servicesCache = services;
+      this.servicesCacheTimestamp = now;
+      
+      console.log('Pobrano usługi:', services);
+      return services;
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      // Zwróć cache jeśli jest dostępny, nawet jeśli wygasł
+      return this.servicesCache || [];
+    }
+  }
+
+  // Add new service
+  async addService(serviceData) {
+    try {
+      const docRef = await addDoc(collection(db, 'services'), {
+        ...serviceData,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+      
+      // Wyczyść cache po dodaniu
+      this.clearServicesCache();
+      
+      return {
+        success: true,
+        id: docRef.id,
+        message: 'Service added successfully'
+      };
+    } catch (error) {
+      console.error('Error adding service:', error);
+      throw new Error('Failed to add service');
+    }
+  }
+
+  // Update service
+  async updateService(serviceId, serviceData) {
+    try {
+      const serviceRef = doc(db, 'services', serviceId);
+      await updateDoc(serviceRef, {
+        ...serviceData,
+        updatedAt: Timestamp.now()
+      });
+      
+      // Wyczyść cache po aktualizacji
+      this.clearServicesCache();
+      
+      return {
+        success: true,
+        message: 'Service updated successfully'
+      };
+    } catch (error) {
+      console.error('Error updating service:', error);
+      throw new Error('Failed to update service');
+    }
+  }
+
+  // Delete service
+  async deleteService(serviceId) {
+    try {
+      await deleteDoc(doc(db, 'services', serviceId));
+      
+      // Wyczyść cache po usunięciu
+      this.clearServicesCache();
+      
+      return {
+        success: true,
+        message: 'Service deleted successfully'
+      };
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      throw new Error('Failed to delete service');
+    }
+  }
+
+  // Dodaj metodę do czyszczenia cache usług
+  clearServicesCache() {
+    this.servicesCache = null;
+    this.servicesCacheTimestamp = 0;
+    console.log('Cache usług został wyczyszczony');
+  }
+
   // Calculate which time slots should be blocked for an appointment
-  getBlockedSlotsForAppointment(appointment) {
+  async getBlockedSlotsForAppointment(appointment) {
     const startTime = appointment.preferredTime || appointment.confirmedTime;
     const service = appointment.service;
-    const duration = this.getTherapyDuration(service);
+    const duration = await this.getTherapyDuration(service);
     
     if (!startTime) return [startTime];
     
@@ -241,14 +328,13 @@ class FirebaseService {
     // Define all possible time slots (every 30 minutes from 7:00 to 20:30)
     const allSlots = this.generateAllTimeSlots();
     
-    // Check which slots overlap with our appointment
+    // Block slots that are occupied by this specific appointment
     for (const slot of allSlots) {
       const [slotHour, slotMinute] = slot.split(':').map(Number);
       const slotTimeInMinutes = slotHour * 60 + slotMinute;
       const slotEndTimeInMinutes = slotTimeInMinutes + 30; // Each slot is 30 minutes
       
-      // Check if this slot overlaps with our appointment
-      // Overlap occurs if: slot starts before appointment ends AND slot ends after appointment starts
+      // Block slot if it overlaps with our appointment time
       if (slotTimeInMinutes < endTimeInMinutes && slotEndTimeInMinutes > startTimeInMinutes) {
         blockedSlots.push(slot);
       }
@@ -258,9 +344,9 @@ class FirebaseService {
   }
 
   // Check if a time slot conflicts with existing appointments considering duration
-  async isTimeSlotAvailableWithDuration(date, time, service, excludeSessionId = null) {
+  async isTimeSlotAvailableWithDuration(date, time, service, excludeSessionId = null, excludeAppointmentId = null) {
     try {
-      const duration = this.getTherapyDuration(service);
+      const duration = await this.getTherapyDuration(service);
       
       // Check if the requested slot conflicts with existing appointments
       const appointmentQuery = query(
@@ -273,11 +359,16 @@ class FirebaseService {
       
       // Check each existing appointment for conflicts
       for (const doc of appointmentSnapshot.docs) {
+        // Skip the appointment we're trying to reschedule
+        if (excludeAppointmentId && doc.id === excludeAppointmentId) {
+          continue;
+        }
+        
         const appointment = doc.data();
-        const existingBlockedSlots = this.getBlockedSlotsForAppointment(appointment);
+        const existingBlockedSlots = await this.getBlockedSlotsForAppointment(appointment);
         
         // Check if any of our required slots conflict with existing blocked slots
-        const requestedSlots = this.getBlockedSlotsForAppointment({
+        const requestedSlots = await this.getBlockedSlotsForAppointment({
           preferredTime: time,
           service: service
         });
@@ -328,12 +419,79 @@ class FirebaseService {
   // Sanitize input data
   sanitizeAppointmentData(data) {
     return {
-      name: data.name?.trim() || '',
-      email: data.email?.trim().toLowerCase() || '',
-      service: data.service || '',
-      preferredDate: data.preferredDate || '',
-      preferredTime: data.preferredTime || '',
-      message: data.message?.trim() || ''
+      name: this.sanitizeString(data.name, 100),
+      email: this.sanitizeEmail(data.email),
+      service: this.sanitizeString(data.service, 50),
+      preferredDate: this.sanitizeDate(data.preferredDate),
+      preferredTime: this.sanitizeString(data.preferredTime, 10),
+      message: this.sanitizeString(data.message, 1000)
+    };
+  }
+
+  sanitizeString(str, maxLength = 255) {
+    if (!str) return '';
+    // Remove HTML tags and trim
+    const sanitized = str.toString()
+      .replace(/<[^>]*>/g, '')
+      .replace(/[<>\"'&]/g, '')
+      .trim();
+    return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
+  }
+
+  sanitizeEmail(email) {
+    if (!email) return '';
+    const sanitized = email.toString().trim().toLowerCase();
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(sanitized) ? sanitized : '';
+  }
+
+  sanitizeDate(date) {
+    if (!date) return '';
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) return '';
+    
+    const parsedDate = new Date(date);
+    return !isNaN(parsedDate.getTime()) ? date : '';
+  }
+
+  validateAppointmentData(data) {
+    const errors = [];
+    
+    if (!data.name || data.name.length < 2) {
+      errors.push('Imię i nazwisko musi mieć co najmniej 2 znaki');
+    }
+    
+    if (!data.email) {
+      errors.push('Adres email jest wymagany');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      errors.push('Nieprawidłowy format adresu email');
+    }
+    
+    if (!data.service) {
+      errors.push('Wybór usługi jest wymagany');
+    }
+    
+    if (!data.preferredDate) {
+      errors.push('Data wizyty jest wymagana');
+    } else {
+      const appointmentDate = new Date(data.preferredDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (appointmentDate < today) {
+        errors.push('Data wizyty nie może być w przeszłości');
+      }
+    }
+    
+    if (!data.preferredTime) {
+      errors.push('Godzina wizyty jest wymagana');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
     };
   }
 
@@ -459,27 +617,26 @@ class FirebaseService {
 
   // Get available time slots for a specific date
   async getAvailableTimeSlots(date, excludeSessionId = null) {
-    const perfTrace = trace(perf, 'getAvailableTimeSlots');
-    perfTrace.start();
+    const perfTrace = perf ? trace(perf, 'getAvailableTimeSlots') : null;
+    perfTrace?.start();
     
     try {
       // Check cache first
       const cacheKey = `${date}-${excludeSessionId || 'none'}`;
       const cached = this.slotsCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
-        perfTrace.putAttribute('cache_hit', 'true');
-        perfTrace.stop();
+        perfTrace?.putAttribute('cache_hit', 'true');
+        perfTrace?.stop();
         return cached.slots;
       }
       
-      perfTrace.putAttribute('cache_hit', 'false');
+      perfTrace?.putAttribute('cache_hit', 'false');
       
       // Clean up expired temporary blocks first (optional operation)
       try {
         await this.cleanupExpiredBlocks();
       } catch (cleanupError) {
         // Continue without cleanup if it fails
-        console.log('Cleanup skipped due to permissions, continuing with slot check');
       }
       
       // Get available slots from schedule service (admin-defined)
@@ -527,12 +684,11 @@ class FirebaseService {
       const appointmentSnapshot = await getDocs(appointmentQuery);
       const bookedTimes = new Set();
       
-      appointmentSnapshot.forEach((doc) => {
+      for (const doc of appointmentSnapshot.docs) {
         const appointment = doc.data();
-        const blockedSlots = this.getBlockedSlotsForAppointment(appointment);
-        console.log(`Appointment at ${appointment.preferredTime} (${appointment.service}) blocks:`, blockedSlots); // DEBUG
+        const blockedSlots = await this.getBlockedSlotsForAppointment(appointment);
         blockedSlots.forEach(slot => bookedTimes.add(slot));
-      });
+      }
       
       
       // Get active temporary blocks for this date
@@ -561,7 +717,7 @@ class FirebaseService {
       }
 
       // Return available slots with detailed information, checking ALL possible conflicts
-      const result = workingHours.map(time => {
+      const result = await Promise.all(workingHours.map(async (time) => {
         const isTemporarilyBlocked = temporarilyBlocked.has(time);
         
         // Check availability for each service type by simulating booking attempt
@@ -570,7 +726,7 @@ class FirebaseService {
         
         for (const serviceType of serviceTypes) {
           // Get slots that would be blocked by this service type at this time
-          const requiredSlots = this.getBlockedSlotsForAppointment({
+          const requiredSlots = await this.getBlockedSlotsForAppointment({
             preferredTime: time,
             service: serviceType
           });
@@ -595,7 +751,7 @@ class FirebaseService {
           // Add reason why slot is unavailable
           unavailableReason: !isAvailable ? (isBooked ? 'booked' : (isTemporarilyBlocked ? 'temporarily_blocked' : 'conflict')) : null
         };
-      });
+      }));
       
       // Cache the result
       this.slotsCache.set(cacheKey, {
@@ -603,13 +759,13 @@ class FirebaseService {
         timestamp: Date.now()
       });
       
-      perfTrace.putAttribute('slots_count', result.length.toString());
-      perfTrace.stop();
+      perfTrace?.putAttribute('slots_count', result.length.toString());
+      perfTrace?.stop();
       return result;
     } catch (error) {
       console.error('Error getting available time slots:', error);
-      perfTrace.putAttribute('error', 'true');
-      perfTrace.stop();
+      perfTrace?.putAttribute('error', 'true');
+      perfTrace?.stop();
       return [];
     }
   }
@@ -677,17 +833,19 @@ class FirebaseService {
 
       const currentData = appointmentDoc.data();
       
-      // Check if new slot is available with duration consideration
-      const isAvailable = await this.isTimeSlotAvailableWithDuration(newDate, newTime, currentData.service);
+      // Check if new slot is available with duration consideration (exclude current appointment)
+      const isAvailable = await this.isTimeSlotAvailableWithDuration(newDate, newTime, currentData.service, null, appointmentId);
       if (!isAvailable) {
         throw new Error('Selected time slot is not available or conflicts with existing appointment');
       }
       
       const updateData = {
-        originalDate: currentData.preferredDate,
-        originalTime: currentData.preferredTime,
+        originalDate: currentData.confirmedDate || currentData.preferredDate,
+        originalTime: currentData.confirmedTime || currentData.preferredTime,
         preferredDate: newDate,
         preferredTime: newTime,
+        confirmedDate: newDate,  // Update confirmed date to new date
+        confirmedTime: newTime,  // Update confirmed time to new time
         rescheduleCount: (currentData.rescheduleCount || 0) + 1,
         updatedAt: Timestamp.now()
       };
@@ -767,9 +925,32 @@ class FirebaseService {
 
   // Create temporary block for a time slot
   async createTemporaryBlock(date, time, sessionId) {
+    const operationKey = sessionId;
+    
+    // Check if there's already an operation in progress for this session
+    if (this.blockingOperations.has(operationKey)) {
+      await this.blockingOperations.get(operationKey);
+    }
+    
+    // Create a new operation promise
+    const operation = this._doCreateTemporaryBlock(date, time, sessionId);
+    this.blockingOperations.set(operationKey, operation);
+    
+    try {
+      const result = await operation;
+      return result;
+    } finally {
+      this.blockingOperations.delete(operationKey);
+    }
+  }
+  
+  async _doCreateTemporaryBlock(date, time, sessionId) {
     try {
       // Clean up expired blocks first
       await this.cleanupExpiredBlocks();
+      
+      // Remove any existing blocks for this session FIRST
+      await this.removeTemporaryBlock(sessionId);
       
       // Check if slot is still available
       const isAvailable = await this.isTimeSlotAvailable(date, time, sessionId);
@@ -777,7 +958,7 @@ class FirebaseService {
         throw new Error('Time slot is no longer available');
       }
       
-      // Create or update temporary block
+      // Create new temporary block
       const expiresAt = new Date(Date.now() + this.blockDuration);
       const blockData = {
         date,
@@ -786,9 +967,6 @@ class FirebaseService {
         createdAt: Timestamp.now(),
         expiresAt: Timestamp.fromDate(expiresAt)
       };
-      
-      // Remove any existing blocks for this session
-      await this.removeTemporaryBlock(sessionId);
       
       const docRef = await addDoc(this.temporaryBlocksCollection, blockData);
       
@@ -850,7 +1028,6 @@ class FirebaseService {
       if (error.code === 'permission-denied') {
         console.warn('Firebase permissions not configured for temporaryBlocks collection. This is optional for basic functionality.');
       } else if (error.code === 'not-found') {
-        console.log('temporaryBlocks collection does not exist yet, will be created when first block is added.');
       } else {
         console.warn('Could not clean up expired blocks:', error.message);
       }
@@ -1042,15 +1219,12 @@ class FirebaseService {
   // Daily maintenance check (should be called by scheduled function)
   async performDailyMaintenance() {
     try {
-      console.log('Starting daily maintenance...');
       
       // Cleanup old appointments
       const cleanupResult = await this.cleanupOldAppointments();
-      console.log('Cleanup result:', cleanupResult);
       
       // Cleanup expired temporary blocks
       const blockCleanup = await this.cleanupExpiredBlocks();
-      console.log('Block cleanup result:', blockCleanup);
       
       return {
         success: true,

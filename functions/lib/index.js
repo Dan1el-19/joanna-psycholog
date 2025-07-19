@@ -37,9 +37,11 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
         // Store pricing information and token in the appointment document
         await ((_b = event.data) === null || _b === void 0 ? void 0 : _b.ref.update({
             calculatedPrice: pricing.finalPrice,
-            basePrice: pricing.basePrice,
+            originalServicePrice: pricing.basePrice, // Original price from service
+            basePrice: pricing.basePrice, // Keep for compatibility
             isFirstSession: pricing.isFirstSession,
             discount: pricing.discount,
+            discountAmount: pricing.basePrice - pricing.finalPrice,
             pricingCalculatedAt: firestore_2.FieldValue.serverTimestamp(),
             reservationToken,
             tokenExpiresAt: firestore_2.Timestamp.fromDate(tokenExpiresAt)
@@ -52,6 +54,8 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             createdAt: firestore_2.FieldValue.serverTimestamp(),
             isUsed: false
         });
+        // Get service name for email templates
+        const serviceName = await getServiceName(appointmentData.service);
         // Send confirmation email to client
         const clientEmailDoc = {
             to: appointmentData.email,
@@ -64,7 +68,7 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
               <h3 style="color: #007bff; margin-top: 0;">Szczegóły wizyty</h3>
-              <p><strong>Usługa:</strong> ${getServiceName(appointmentData.service)}</p>
+              <p><strong>Usługa:</strong> ${serviceName}</p>
               <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate || 'Do uzgodnienia'}</p>
               <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime || 'Do uzgodnienia'}</p>
               ${appointmentData.phone ? `<p><strong>Telefon:</strong> ${appointmentData.phone}</p>` : ''}
@@ -76,9 +80,9 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
               <p style="font-size: 18px; margin: 0;"><strong>Koszt: ${pricing.finalPrice} PLN</strong></p>
               ${pricing.isFirstSession ? `
                 <p style="color: #28a745; font-weight: bold; margin: 10px 0;">🎉 Pierwsze spotkanie - 50% zniżki!</p>
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena: ${pricing.basePrice} PLN</p>
+                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${serviceName}: ${pricing.basePrice} PLN</p>
               ` : `
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${getServiceName(appointmentData.service)}</p>
+                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${serviceName}: ${pricing.basePrice} PLN</p>
               `}
             </div>
             
@@ -89,7 +93,7 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
               <h3 style="color: #1976d2; margin-top: 0;">🔗 Zarządzanie rezerwacją</h3>
               <p style="margin: 10px 0;">Możesz sprawdzić status swojej wizyty, zmienić termin lub anulować rezerwację klikając w poniższy link:</p>
               <p style="text-align: center; margin: 15px 0;">
-                <a href="https://joanna-rudzinska.web.app/manage-reservation/${reservationToken}" 
+                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" 
                    style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                   Zarządzaj rezerwacją
                 </a>
@@ -104,14 +108,14 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             Psycholog<br>
             📧 j.rudzinska@myreflection.pl</p>
           `,
-                text: `Dziękuję za zgłoszenie wizyty ${getServiceName(appointmentData.service)}. Cena: ${pricing.finalPrice} PLN${pricing.isFirstSession ? ' (pierwsze spotkanie - 50% zniżki)' : ''}. Skontaktuję się w ciągu 24h.`
+                text: `Dziękuję za zgłoszenie wizyty ${serviceName}. Cena: ${pricing.finalPrice} PLN${pricing.isFirstSession ? ' (pierwsze spotkanie - 50% zniżki)' : ''}. Skontaktuję się w ciągu 24h.`
             }
         };
         // Send notification email to therapist
         const therapistEmailDoc = {
-            to: 'j.rudzinska@myreflection.pl',
+            to: 'j.rudzinska@myreflection.pl', // Zmień na prawdziwy adres email
             message: {
-                subject: `Nowa wizyta: ${appointmentData.name} - ${getServiceName(appointmentData.service)}`,
+                subject: `Nowa wizyta: ${appointmentData.name} - ${serviceName}`,
                 html: `
             <h2>Nowa wizyta - ${appointmentData.name}</h2>
             
@@ -124,7 +128,7 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             
             <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
               <h3>Szczegóły wizyty:</h3>
-              <p><strong>Usługa:</strong> ${getServiceName(appointmentData.service)}</p>
+              <p><strong>Usługa:</strong> ${serviceName}</p>
               <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate}</p>
               <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime}</p>
               <p><strong>Cena:</strong> ${pricing.finalPrice} PLN ${pricing.isFirstSession ? '(pierwsze spotkanie - 50% taniej)' : '(standardowa cena)'}</p>
@@ -174,7 +178,11 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
             console.log('Sending appointment approval email for:', appointmentId);
             // Use stored pricing information (calculated when appointment was created)
             const finalPrice = afterData.calculatedPrice || afterData.basePrice || 'do ustalenia';
+            const originalPrice = afterData.originalServicePrice || afterData.basePrice;
             const isFirstSession = afterData.isFirstSession || false;
+            // Get service name and duration for email templates
+            const serviceName = await getServiceName(afterData.service);
+            const serviceDuration = await getServiceDuration(afterData.service);
             // Send approval email to client
             const approvalEmailDoc = {
                 to: afterData.email,
@@ -187,10 +195,11 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
               
               <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
                 <h3 style="color: #155724; margin-top: 0;">📅 Szczegóły potwierdzonej wizyty</h3>
-                <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>📅 Data:</strong> ${afterData.confirmedDate || afterData.preferredDate}</p>
                 <p><strong>🕐 Godzina:</strong> ${afterData.confirmedTime || afterData.preferredTime}</p>
                 <p><strong>💰 Cena:</strong> ${finalPrice} PLN${isFirstSession ? ' <span style="color: #28a745;">(pierwsze spotkanie - 50% zniżki)</span>' : ''}</p>
+                ${isFirstSession && originalPrice ? `<p style="font-size: 14px; color: #6c757d;"><strong>Regularna cena:</strong> ${originalPrice} PLN</p>` : ''}
                 ${afterData.location ? `<p><strong>📍 Miejsce:</strong> ${afterData.location}</p>` : '<p><strong>📍 Miejsce:</strong> Informacje zostały przesłane oddzielnie</p>'}
                 ${afterData.adminNotes ? `<p><strong>📝 Dodatkowe informacje:</strong> ${afterData.adminNotes}</p>` : ''}
               </div>
@@ -198,7 +207,7 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
               <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
                 <p><strong>⚠️ Ważne przypomnienia:</strong></p>
                 <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${afterData.service === 'terapia-indywidualna' ? '50 minut' : '90 minut'}</li>
+                  <li>Wizyta trwa ${serviceDuration} minut</li>
                   <li>W razie potrzeby odwołania, proszę o kontakt minimum 24h wcześniej</li>
                   <li>Wszystkie rozmowy objęte są tajemnicą zawodową</li>
                 </ul>
@@ -208,7 +217,7 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
                 <h3 style="color: #1976d2; margin-top: 0;">🔗 Zarządzanie rezerwacją</h3>
                 <p style="margin: 10px 0;">Możesz zmienić termin lub anulować wizytę klikając w poniższy link:</p>
                 <p style="text-align: center; margin: 15px 0;">
-                  <a href="https://joanna-rudzinska.web.app/manage-reservation/${afterData.reservationToken}" 
+                  <a href="https://myreflection.pl/manage-reservation/${afterData.reservationToken}" 
                      style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                     Zarządzaj rezerwacją
                   </a>
@@ -225,7 +234,7 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
               Psycholog<br>
               📧 j.rudzinska@myreflection.pl</p>
             `,
-                    text: `Termin wizyty został potwierdzony. Usługa: ${getServiceName(afterData.service)}, Data: ${afterData.confirmedDate || afterData.preferredDate}, Godzina: ${afterData.confirmedTime || afterData.preferredTime}`
+                    text: `Termin wizyty został potwierdzony. Usługa: ${serviceName}, Data: ${afterData.confirmedDate || afterData.preferredDate}, Godzina: ${afterData.confirmedTime || afterData.preferredTime}`
                 }
             };
             // Add email to mail collection
@@ -243,9 +252,20 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
     }
 });
 /**
- * Helper function to get service display name
+ * Helper function to get service display name from database
  */
-function getServiceName(serviceCode) {
+async function getServiceName(serviceCode) {
+    try {
+        const serviceDoc = await db.collection('services').doc(serviceCode).get();
+        if (serviceDoc.exists) {
+            const serviceData = serviceDoc.data();
+            return (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || serviceCode;
+        }
+    }
+    catch (error) {
+        console.warn('Could not fetch service name from database:', error);
+    }
+    // Fallback to display names only for existing services
     const services = {
         'terapia-indywidualna': 'Terapia Indywidualna',
         'terapia-par': 'Terapia Par',
@@ -253,6 +273,28 @@ function getServiceName(serviceCode) {
         'konsultacje-online': 'Konsultacje online'
     };
     return services[serviceCode] || serviceCode;
+}
+/**
+ * Helper function to get service duration from database
+ */
+async function getServiceDuration(serviceCode) {
+    try {
+        const serviceDoc = await db.collection('services').doc(serviceCode).get();
+        if (serviceDoc.exists) {
+            const serviceData = serviceDoc.data();
+            return (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
+        }
+    }
+    catch (error) {
+        console.warn('Could not fetch service duration from database:', error);
+    }
+    // Fallback for existing services only
+    const durations = {
+        'terapia-indywidualna': 50,
+        'terapia-par': 90,
+        'terapia-rodzinna': 90
+    };
+    return durations[serviceCode] || 50;
 }
 /**
  * Check if user has completed sessions before
@@ -275,12 +317,19 @@ async function hasCompletedSession(email) {
  * Calculate pricing based on service and user history
  */
 async function calculatePricing(service, email) {
-    const basePrices = {
-        'terapia-indywidualna': 150,
-        'terapia-par': 220,
-        'terapia-rodzinna': 230
-    };
-    const basePrice = basePrices[service] || 150;
+    let basePrice = 150; // Default price
+    try {
+        const serviceDoc = await db.collection('services').doc(service).get();
+        if (serviceDoc.exists) {
+            const serviceData = serviceDoc.data();
+            basePrice = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.price) || 150;
+        }
+    }
+    catch (error) {
+        console.warn('Could not fetch service price from database:', error);
+        // Use default price if database fetch fails
+        basePrice = 150;
+    }
     const hasCompletedBefore = await hasCompletedSession(email);
     const isFirstSession = !hasCompletedBefore;
     const finalPrice = isFirstSession ? Math.round(basePrice * 0.5) : basePrice;
@@ -305,7 +354,7 @@ function generateUniqueToken() {
  * Send reminder emails for appointments (runs daily at 9 AM)
  */
 exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
-    schedule: '0 9 * * *',
+    schedule: '0 9 * * *', // Every day at 9 AM
     timeZone: 'Europe/Warsaw',
     region: 'europe-central2'
 }, async (event) => {
@@ -326,10 +375,13 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
             return;
         }
         const emailPromises = [];
-        querySnapshot.forEach((doc) => {
+        for (const doc of querySnapshot.docs) {
             const appointment = doc.data();
             const appointmentId = doc.id;
             console.log(`Sending reminder for appointment ${appointmentId}`);
+            // Get service details
+            const serviceName = await getServiceName(appointment.service);
+            const serviceDuration = await getServiceDuration(appointment.service);
             // Create reminder email
             const reminderEmailDoc = {
                 to: appointment.email,
@@ -342,7 +394,7 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
               
               <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
                 <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                <p><strong>Usługa:</strong> ${getServiceName(appointment.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>📅 Data:</strong> ${appointment.confirmedDate}</p>
                 <p><strong>🕐 Godzina:</strong> ${appointment.confirmedTime}</p>
                 <p><strong>💰 Cena:</strong> ${appointment.calculatedPrice || appointment.basePrice || 'do ustalenia'} PLN</p>
@@ -353,7 +405,7 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
               <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
                 <p><strong>⚠️ Przypomnienia:</strong></p>
                 <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${appointment.service === 'terapia-indywidualna' ? '50 minut' : '90 minut'}</li>
+                  <li>Wizyta trwa ${serviceDuration} minut</li>
                   <li>W razie potrzeby odwołania, proszę o kontakt do godz. ${appointment.confirmedTime}</li>
                   <li>Proszę być na czas lub kilka minut wcześniej</li>
                 </ul>
@@ -366,7 +418,7 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
               Psycholog<br>
               📧 j.rudzinska@myreflection.pl</p>
             `,
-                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${getServiceName(appointment.service)}. Do zobaczenia!`
+                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${serviceName}. Do zobaczenia!`
                 }
             };
             // Add email to mail collection and update appointment
@@ -377,7 +429,7 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
                     reminderEmailSentAt: firestore_2.FieldValue.serverTimestamp()
                 })
             ]));
-        });
+        }
         await Promise.all(emailPromises);
         console.log(`Sent ${emailPromises.length} reminder emails`);
     }
@@ -409,10 +461,13 @@ exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
             return;
         }
         const emailPromises = [];
-        querySnapshot.forEach((doc) => {
+        for (const doc of querySnapshot.docs) {
             const appointment = doc.data();
             const appointmentId = doc.id;
             console.log(`Sending manual reminder for appointment ${appointmentId}`);
+            // Get service details
+            const serviceName = await getServiceName(appointment.service);
+            const serviceDuration = await getServiceDuration(appointment.service);
             // Create reminder email (same as scheduled version)
             const reminderEmailDoc = {
                 to: appointment.email,
@@ -425,7 +480,7 @@ exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
               
               <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
                 <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                <p><strong>Usługa:</strong> ${getServiceName(appointment.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>📅 Data:</strong> ${appointment.confirmedDate}</p>
                 <p><strong>🕐 Godzina:</strong> ${appointment.confirmedTime}</p>
                 <p><strong>💰 Cena:</strong> ${appointment.calculatedPrice || appointment.basePrice || 'do ustalenia'} PLN</p>
@@ -436,7 +491,7 @@ exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
               <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
                 <p><strong>⚠️ Przypomnienia:</strong></p>
                 <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${appointment.service === 'terapia-indywidualna' ? '50 minut' : '90 minut'}</li>
+                  <li>Wizyta trwa ${serviceDuration} minut</li>
                   <li>W razie potrzeby odwołania, proszę o kontakt do godz. ${appointment.confirmedTime}</li>
                   <li>Proszę być na czas lub kilka minut wcześniej</li>
                 </ul>
@@ -449,7 +504,7 @@ exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
               Psycholog<br>
               📧 j.rudzinska@myreflection.pl</p>
             `,
-                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${getServiceName(appointment.service)}. Do zobaczenia!`
+                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${serviceName}. Do zobaczenia!`
                 }
             };
             // Add email to mail collection and update appointment
@@ -460,7 +515,7 @@ exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
                     reminderEmailSentAt: firestore_2.FieldValue.serverTimestamp()
                 })
             ]));
-        });
+        }
         await Promise.all(emailPromises);
         console.log(`Sent ${emailPromises.length} manual reminder emails`);
     }
@@ -492,6 +547,8 @@ exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
             const cancelledBy = afterData.cancelledBy || 'system';
             const originalDate = beforeData.preferredDate || beforeData.confirmedDate;
             const originalTime = beforeData.preferredTime || beforeData.confirmedTime;
+            // Get service name for email templates
+            const serviceName = await getServiceName(afterData.service);
             // Send cancellation email to client
             const clientEmailDoc = {
                 to: afterData.email,
@@ -504,7 +561,7 @@ exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
               
               <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f44336;">
                 <h3 style="color: #d32f2f; margin-top: 0;">❌ Anulowana wizyta</h3>
-                <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>📅 Data:</strong> ${originalDate}</p>
                 <p><strong>🕐 Godzina:</strong> ${originalTime}</p>
                 <p><strong>Anulowane przez:</strong> ${cancelledBy === 'client' ? 'Klienta' : 'Terapeutę'}</p>
@@ -525,21 +582,21 @@ exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
               Psycholog<br>
               📧 j.rudzinska@myreflection.pl</p>
             `,
-                    text: `Wizyta ${getServiceName(afterData.service)} na ${originalDate} o ${originalTime} została anulowana. Powód: ${cancellationReason}`
+                    text: `Wizyta ${serviceName} na ${originalDate} o ${originalTime} została anulowana. Powód: ${cancellationReason}`
                 }
             };
             // Send notification to therapist
             const therapistEmailDoc = {
                 to: 'j.rudzinska@myreflection.pl',
                 message: {
-                    subject: `ANULOWANIE: ${afterData.name} - ${getServiceName(afterData.service)}`,
+                    subject: `ANULOWANIE: ${afterData.name} - ${serviceName}`,
                     html: `
               <h2>Anulowanie wizyty</h2>
               
               <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0;">
                 <h3>Anulowana wizyta:</h3>
                 <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>Data:</strong> ${originalDate} o ${originalTime}</p>
                 <p><strong>Anulowane przez:</strong> ${cancelledBy === 'client' ? 'Klienta' : 'Administratora'}</p>
                 <p><strong>Powód:</strong> ${cancellationReason}</p>
@@ -592,6 +649,8 @@ exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
             const originalTime = afterData.originalTime || beforeData.preferredTime || beforeData.confirmedTime;
             const newDate = afterData.preferredDate || afterData.confirmedDate;
             const newTime = afterData.preferredTime || afterData.confirmedTime;
+            // Get service name for email templates
+            const serviceName = await getServiceName(afterData.service);
             // Send reschedule email to client
             const clientEmailDoc = {
                 to: afterData.email,
@@ -610,7 +669,7 @@ exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
               
               <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
                 <h3 style="color: #2e7d32; margin-top: 0;">✅ Nowy termin</h3>
-                <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>📅 Data:</strong> ${newDate}</p>
                 <p><strong>🕐 Godzina:</strong> ${newTime}</p>
                 <p><strong>💰 Cena:</strong> ${afterData.calculatedPrice || afterData.basePrice || 'do ustalenia'} PLN</p>
@@ -630,21 +689,21 @@ exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
               Psycholog<br>
               📧 j.rudzinska@myreflection.pl</p>
             `,
-                    text: `Wizyta ${getServiceName(afterData.service)} została przełożona z ${originalDate} ${originalTime} na ${newDate} ${newTime}.`
+                    text: `Wizyta ${serviceName} została przełożona z ${originalDate} ${originalTime} na ${newDate} ${newTime}.`
                 }
             };
             // Send notification to therapist
             const therapistEmailDoc = {
                 to: 'j.rudzinska@myreflection.pl',
                 message: {
-                    subject: `PRZEŁOŻENIE: ${afterData.name} - ${getServiceName(afterData.service)}`,
+                    subject: `PRZEŁOŻENIE: ${afterData.name} - ${serviceName}`,
                     html: `
               <h2>Przełożenie wizyty</h2>
               
               <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
                 <h3>Przełożona wizyta:</h3>
                 <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                <p><strong>Usługa:</strong> ${serviceName}</p>
                 <p><strong>Poprzedni termin:</strong> ${originalDate} o ${originalTime}</p>
                 <p><strong>Nowy termin:</strong> ${newDate} o ${newTime}</p>
                 <p><strong>Liczba przełożeń:</strong> ${afterData.rescheduleCount}</p>
@@ -695,6 +754,8 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
             const appointmentDate = afterData.confirmedDate || afterData.preferredDate;
             const appointmentTime = afterData.confirmedTime || afterData.preferredTime;
             const price = afterData.calculatedPrice || afterData.basePrice || 'do ustalenia';
+            // Get service name for email templates
+            const serviceName = await getServiceName(afterData.service);
             let clientEmailDoc;
             if (afterData.paymentStatus === 'paid') {
                 // Payment confirmed
@@ -717,7 +778,7 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
                 
                 <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
                   <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                  <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                  <p><strong>Usługa:</strong> ${serviceName}</p>
                   <p><strong>📅 Data:</strong> ${appointmentDate}</p>
                   <p><strong>🕐 Godzina:</strong> ${appointmentTime}</p>
                 </div>
@@ -727,7 +788,7 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
                 Psycholog<br>
                 📧 j.rudzinska@myreflection.pl</p>
               `,
-                        text: `Płatność ${price} PLN za wizytę ${getServiceName(afterData.service)} została potwierdzona.`
+                        text: `Płatność ${price} PLN za wizytę ${serviceName} została potwierdzona.`
                     }
                 };
             }
@@ -764,7 +825,7 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
                 Psycholog<br>
                 📧 j.rudzinska@myreflection.pl</p>
               `,
-                        text: `Problem z płatnością ${price} PLN za wizytę ${getServiceName(afterData.service)}. Proszę spróbować ponownie.`
+                        text: `Problem z płatnością ${price} PLN za wizytę ${serviceName}. Proszę spróbować ponownie.`
                     }
                 };
             }
@@ -780,7 +841,7 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
                 <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
                   <h3>Status płatności:</h3>
                   <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                  <p><strong>Usługa:</strong> ${getServiceName(afterData.service)}</p>
+                  <p><strong>Usługa:</strong> ${serviceName}</p>
                   <p><strong>Kwota:</strong> ${price} PLN</p>
                   <p><strong>Status:</strong> ${afterData.paymentStatus}</p>
                   <p><strong>Sposób płatności:</strong> ${paymentMethod}</p>
@@ -813,7 +874,7 @@ exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
  * Removes appointments older than 12 months
  */
 exports.dailyMaintenanceCleanup = (0, scheduler_1.onSchedule)({
-    schedule: '0 3 * * *',
+    schedule: '0 3 * * *', // Every day at 3 AM
     timeZone: 'Europe/Warsaw',
     region: 'europe-central2'
 }, async () => {

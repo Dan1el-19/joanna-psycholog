@@ -1,12 +1,18 @@
 // Reservation management interface for clients
 import scheduleService from './schedule-service.js';
 import firebaseService from './firebase-service.js';
+import { publicAuth } from './public-auth.js';
 
 class ReservationManagement {
   constructor() {
     this.token = null;
     this.appointment = null;
     this.isRescheduleMode = false;
+    this.rescheduleSelectedDate = null;
+    this.rescheduleSelectedTime = null;
+    this.currentMonth = new Date().getMonth();
+    this.currentYear = new Date().getFullYear();
+    this.availableSlots = [];
     this.init();
   }
 
@@ -18,7 +24,7 @@ class ReservationManagement {
     }
   }
 
-  setup() {
+  async setup() {
     // Get token from URL
     this.token = this.getTokenFromURL();
     
@@ -27,7 +33,14 @@ class ReservationManagement {
       return;
     }
 
-    this.loadReservation();
+    // Initialize anonymous auth for Firebase access
+    try {
+      await publicAuth.init();
+      await this.loadReservation();
+    } catch (error) {
+      console.error('Error initializing auth:', error);
+      this.showError('Błąd inicjalizacji. Spróbuj odświeżyć stronę.');
+    }
   }
 
   getTokenFromURL() {
@@ -55,14 +68,55 @@ class ReservationManagement {
         return;
       }
 
-      this.renderReservationDetails();
+      await this.renderReservationDetails();
     } catch (error) {
       console.error('Error loading reservation:', error);
       this.showError('Błąd podczas ładowania szczegółów rezerwacji');
     }
   }
 
-  renderReservationDetails() {
+  renderPriceDisplay(servicePrice) {
+    // POPRAWIONE WYŚWIETLANIE CENY - priorytet dla servicePrice
+    if (servicePrice) {
+      // Użyj ceny z bazy danych usług jako głównej
+      return `
+        <div class="flex flex-col">
+          <div class="flex justify-between">
+            <span class="text-gray-600">Cena:</span>
+            <span class="font-medium">${servicePrice} PLN <span class="text-sm text-gray-500">(aktualna cena)</span></span>
+          </div>
+          ${this.appointment.calculatedPrice && this.appointment.calculatedPrice !== servicePrice ? `
+            <div class="flex justify-between text-sm text-gray-500 mt-1">
+              <span>Cena przy rezerwacji:</span>
+              <span>${this.appointment.calculatedPrice} PLN${this.appointment.isFirstSession ? ' (50% zniżki)' : ''}</span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    } else if (this.appointment.calculatedPrice) {
+      // Fallback na cenę obliczoną podczas rezerwacji
+      return `
+        <div class="flex flex-col">
+          <div class="flex justify-between">
+            <span class="text-gray-600">Cena:</span>
+            <span class="font-medium">
+              ${this.appointment.calculatedPrice} PLN
+              ${this.appointment.isFirstSession ? ' <span class="text-green-600 text-sm">(50% zniżki)</span>' : ''}
+            </span>
+          </div>
+          ${this.appointment.originalServicePrice ? `
+            <div class="flex justify-between text-sm text-gray-500 mt-1">
+              <span>Cena podstawowa:</span>
+              <span>${this.appointment.originalServicePrice} PLN</span>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  async renderReservationDetails() {
     const container = document.getElementById('reservation-content');
     
     const statusColors = {
@@ -79,12 +133,26 @@ class ReservationManagement {
       completed: 'Zakończona'
     };
 
-    const serviceLabels = {
-      'terapia-indywidualna': 'Terapia Indywidualna',
-      'terapia-par': 'Terapia Par',
-      'terapia-rodzinna': 'Terapia Rodzinna',
-      'konsultacje-online': 'Konsultacje online'
-    };
+    // POPRAWIONA LOGIKA POBIERANIA USŁUG I CEN
+    let serviceName = this.appointment.service;
+    let serviceDuration = 50; // domyślny czas
+    let servicePrice = null;
+    
+    try {
+  const services = await firebaseService.getServices();
+  console.log('Dostępne usługi:', services);
+  
+  const serviceObj = services.find(s => s.id === this.appointment.service);
+  
+  if (serviceObj) {
+    serviceName = serviceObj.name || serviceName;
+    servicePrice = serviceObj.price || null;
+    serviceDuration = serviceObj.duration || 50;
+    console.log(`Znaleziono usługę: ${serviceName}, cena: ${servicePrice}`);
+  }
+} catch (error) {
+  console.error('Błąd podczas pobierania usług z bazy danych:', error);
+}
 
     container.innerHTML = `
       <div class="max-w-3xl mx-auto">
@@ -107,7 +175,7 @@ class ReservationManagement {
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-600">Usługa:</span>
-                  <span class="font-medium">${serviceLabels[this.appointment.service]}</span>
+                  <span class="font-medium">${serviceName}</span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-600">Data:</span>
@@ -119,14 +187,9 @@ class ReservationManagement {
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-600">Czas trwania:</span>
-                  <span class="font-medium">${this.appointment.service === 'terapia-indywidualna' ? '50 minut' : '90 minut'}</span>
+                  <span class="font-medium">${serviceDuration} minut</span>
                 </div>
-                ${this.appointment.calculatedPrice ? `
-                  <div class="flex justify-between">
-                    <span class="text-gray-600">Cena:</span>
-                    <span class="font-medium">${this.appointment.calculatedPrice} PLN${this.appointment.isFirstSession ? ' (pierwsze spotkanie)' : ''}</span>
-                  </div>
-                ` : ''}
+                ${this.renderPriceDisplay(servicePrice)}
               </div>
             </div>
             
@@ -355,46 +418,139 @@ class ReservationManagement {
   }
 
   async initRescheduleCalendar() {
-    // Import and initialize calendar interface for reschedule
-    const { default: CalendarInterface } = await import('./calendar-interface.js');
-    
-    // Create a new calendar instance for reschedule
+    // Create temporary form structure needed by CalendarInterface
     const calendarContainer = document.getElementById('reschedule-calendar');
     calendarContainer.innerHTML = `
-      <div class="bg-gray-50 p-4 rounded-lg border">
-        <div id="reschedule-calendar-content">
-          <!-- Calendar content will be loaded here -->
-        </div>
+      <div id="temp-form-container">
+        <!-- Temporary inputs that CalendarInterface expects -->
+        <input type="date" id="preferred-date" style="display: none;" />
+        <select id="preferred-time" style="display: none;">
+          <option value="">Wybierz godzinę</option>
+        </select>
+        <label for="preferred-date" style="display: none;"></label>
+        <label for="preferred-time" style="display: none;"></label>
+        
+        <!-- Calendar will be injected here by CalendarInterface -->
       </div>
     `;
 
-    // Initialize mini calendar for reschedule
-    this.setupRescheduleCalendar();
+    // Import the calendar interface (it exports an instance, not a class)
+    const calendarInterfaceModule = await import('./calendar-interface.js');
+    this.rescheduleCalendar = calendarInterfaceModule.default;
+    
+    // Override the calendar's setup to work within our container
+    await this.rescheduleCalendar.setup();
+    
+    // Set up listeners to capture calendar selections
+    this.setupRescheduleListeners();
   }
 
-  setupRescheduleCalendar() {
-    // Simplified calendar setup for reschedule
-    // This is a placeholder - in a real implementation, you'd reuse the calendar interface
-    const content = document.getElementById('reschedule-calendar-content');
-    content.innerHTML = `
-      <div class="text-center py-8">
-        <p class="text-gray-600 mb-4">Kalendarz rezerwacji zostanie tutaj zaimplementowany</p>
-        <p class="text-sm text-gray-500">Na razie skontaktuj się bezpośrednio w celu zmiany terminu:</p>
-        <a href="mailto:j.rudzinska@myreflection.pl" class="text-blue-600 hover:text-blue-800">
-          j.rudzinska@myreflection.pl
-        </a>
-      </div>
-    `;
+  setupRescheduleListeners() {
+    // Monitor the hidden inputs that CalendarInterface updates
+    const dateInput = document.getElementById('preferred-date');
+    const timeInput = document.getElementById('preferred-time');
+    
+    if (dateInput) {
+      // Multiple event types to catch all changes
+      ['change', 'input'].forEach(eventType => {
+        dateInput.addEventListener(eventType, (e) => {
+          this.rescheduleSelectedDate = e.target.value;
+          document.getElementById('new-date').value = e.target.value;
+          this.updateConfirmButton();
+        });
+      });
+    }
+    
+    if (timeInput) {
+      // MutationObserver for value attribute changes
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+            const value = timeInput.value;
+            if (value) {
+              this.rescheduleSelectedTime = value;
+              document.getElementById('new-time').value = value;
+              this.updateConfirmButton();
+            }
+          }
+        });
+      });
+      
+      observer.observe(timeInput, { 
+        attributes: true, 
+        attributeFilter: ['value']
+      });
+      
+      // Multiple event listeners for time input
+      ['change', 'input', 'blur'].forEach(eventType => {
+        timeInput.addEventListener(eventType, (e) => {
+          this.rescheduleSelectedTime = e.target.value;
+          document.getElementById('new-time').value = e.target.value;
+          this.updateConfirmButton();
+        });
+      });
+      
+      // Periodically check values as fallback
+      setInterval(() => {
+        const currentDate = dateInput.value;
+        const currentTime = timeInput.value;
+        
+        if (currentDate && currentDate !== this.rescheduleSelectedDate) {
+          this.rescheduleSelectedDate = currentDate;
+          document.getElementById('new-date').value = currentDate;
+          this.updateConfirmButton();
+        }
+        
+        if (currentTime && currentTime !== this.rescheduleSelectedTime) {
+          this.rescheduleSelectedTime = currentTime;
+          document.getElementById('new-time').value = currentTime;
+          this.updateConfirmButton();
+        }
+      }, 500);
+    }
+  }
+  
+  updateConfirmButton() {
+    const confirmButton = document.getElementById('confirm-reschedule');
+    if (confirmButton) {
+      confirmButton.disabled = !(this.rescheduleSelectedDate && this.rescheduleSelectedTime);
+    }
   }
 
-  cancelReschedule() {
+
+  async cancelReschedule() {
     this.isRescheduleMode = false;
-    this.renderReservationDetails();
+    await this.renderReservationDetails();
   }
 
   async confirmReschedule() {
-    // Placeholder for reschedule confirmation
-    this.showError('Funkcja zmiany terminu będzie dostępna wkrótce. Skontaktuj się bezpośrednio.');
+    if (!this.rescheduleSelectedDate || !this.rescheduleSelectedTime) {
+      this.showError('Wybierz nową datę i godzinę');
+      return;
+    }
+
+    try {
+      // Show loading
+      this.showLoading('Zmienianie terminu wizyty...');
+
+      // Use the same reschedule method as admin panel
+      await firebaseService.rescheduleAppointment(
+        this.appointment.id, 
+        this.rescheduleSelectedDate, 
+        this.rescheduleSelectedTime
+      );
+
+      // Reload appointment data to show updated details
+      await this.loadReservation();
+      
+      // Show success message
+      this.showSuccess('Termin został zmieniony', 
+        `Nowy termin: ${this.rescheduleSelectedDate} o ${this.rescheduleSelectedTime}. Otrzymasz email z potwierdzeniem.`);
+
+    } catch (error) {
+      console.error('Error rescheduling appointment:', error);
+      this.showError(error.message || 'Błąd podczas zmiany terminu. Spróbuj ponownie lub skontaktuj się bezpośrednio.');
+    }
   }
 
   showLoading(message) {
@@ -436,7 +592,7 @@ class ReservationManagement {
         </div>
         <h3 class="text-xl font-semibold text-gray-900 mb-2">${title}</h3>
         <p class="text-gray-600 mb-6">${message}</p>
-        <a href="/umow-wizyte.html" class="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+        <a href="/umow-wizyte" class="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
           Zarezerwuj nową wizytę
         </a>
       </div>

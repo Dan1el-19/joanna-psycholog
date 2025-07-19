@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
+    "build:app": "npm run build",
+    "build:functions": "cd functions && npm install && npm run build && cd ..",
+    "deploy:firebase": "firebase deploy",
+    "deploy:all": "npm run build:app && npm run build:functions && npm run deploy:firebase",
     "preview": "vite preview",
     "deploy": "firebase deploy"
   },
   "devDependencies": {
+    "terser": "^5.43.1",
     "vite": "^7.0.0"
   },
   "dependencies": {

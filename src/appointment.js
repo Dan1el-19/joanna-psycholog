@@ -1,5 +1,6 @@
 // Appointment booking functionality
 import firebaseService from './firebase-service.js';
+import { publicAuth } from './public-auth.js';
 
 class AppointmentBooking {
   constructor() {
@@ -14,7 +15,16 @@ class AppointmentBooking {
     this.init();
   }
 
-  init() {
+  async init() {
+    // Initialize anonymous authentication first
+    try {
+      await publicAuth.init();
+    } catch (error) {
+      console.error('Failed to initialize authentication:', error);
+      this.showError('Błąd połączenia. Spróbuj odświeżyć stronę.');
+      return;
+    }
+
     // Wait for DOM to be loaded
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this.setupForm());
@@ -150,15 +160,6 @@ class AppointmentBooking {
           const availableServices = [];
           const unavailableServices = [];
           
-          if (slot.serviceAvailability['terapia-indywidualna']) availableServices.push('indywidualną');
-          else unavailableServices.push('indywidualną');
-          
-          if (slot.serviceAvailability['terapia-par']) availableServices.push('par');
-          else unavailableServices.push('par');
-          
-          if (slot.serviceAvailability['terapia-rodzinna']) availableServices.push('rodzinną');
-          else unavailableServices.push('rodzinną');
-          
           if (unavailableServices.length > 0 && availableServices.length > 0) {
             option.textContent += ` (dostępne dla: ${availableServices.join(', ')})`;
             option.style.color = '#d97706'; // Orange color for limited availability
@@ -187,6 +188,15 @@ class AppointmentBooking {
     
     if (!this.form) return;
 
+    // Ensure user is authenticated
+    try {
+      await publicAuth.ensureAuthenticated();
+    } catch (error) {
+      this.showMessage('Błąd połączenia. Spróbuj odświeżyć stronę.', 'error');
+      this.setLoadingState(false);
+      return;
+    }
+
     // Disable submit button and show loading state
     this.setLoadingState(true);
 
@@ -205,6 +215,13 @@ class AppointmentBooking {
       // Sanitize data
       const sanitizedData = firebaseService.sanitizeAppointmentData(appointmentData);
       
+      // Validate sanitized data
+      const validation = firebaseService.validateAppointmentData(sanitizedData);
+      if (!validation.isValid) {
+        this.showMessage(validation.errors.join('<br>'), 'error');
+        return;
+      }
+      
       // Check privacy policy checkbox
       const privacyPolicyCheckbox = this.form.querySelector('#privacy-policy');
       if (!privacyPolicyCheckbox || !privacyPolicyCheckbox.checked) {
@@ -217,12 +234,6 @@ class AppointmentBooking {
         return;
       }
 
-      // Validate data
-      const validation = firebaseService.validateAppointmentData(sanitizedData);
-      if (!validation.isValid) {
-        this.showMessage(validation.errors.join('<br>'), 'error');
-        return;
-      }
 
       // Validate that time is selected (critical requirement)
       if (!sanitizedData.preferredTime || sanitizedData.preferredTime.trim() === '') {
@@ -395,7 +406,6 @@ class AppointmentBooking {
       if (this.selectedSlot && this.selectedSlot.blockId) {
         try {
           await firebaseService.extendTemporaryBlock(this.sessionId);
-          console.log('Temporary block extended');
         } catch (error) {
           console.warn('Could not extend temporary block:', error);
           // Continue without extending - don't clear selection

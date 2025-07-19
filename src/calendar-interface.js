@@ -1,6 +1,7 @@
 // Client calendar interface for appointment booking
 import scheduleService from './schedule-service.js';
 import firebaseService from './firebase-service.js';
+import { publicAuth } from './public-auth.js';
 
 class CalendarInterface {
   constructor() {
@@ -13,7 +14,14 @@ class CalendarInterface {
     this.init();
   }
 
-  init() {
+  async init() {
+    // Initialize public authentication first
+    try {
+      await publicAuth.init();
+    } catch (error) {
+      console.error('Failed to initialize authentication for calendar:', error);
+    }
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this.setup());
     } else {
@@ -21,7 +29,10 @@ class CalendarInterface {
     }
   }
 
-  setup() {
+  async setup() {
+    // Ensure anonymous authentication is complete before loading calendar
+    await publicAuth.ensureAuthenticated();
+    
     this.createCalendarInterface();
     this.loadAvailableSlots();
   }
@@ -101,9 +112,18 @@ class CalendarInterface {
     // Insert calendar before the original date input
     dateInput.parentNode.insertBefore(calendarContainer, dateInput);
 
-    // Hide original inputs
-    dateInput.style.display = 'none';
-    timeSelect.style.display = 'none';
+    // Convert date input to hidden to avoid validation focus issues
+    dateInput.type = 'hidden';
+    dateInput.removeAttribute('required');
+    dateInput.removeAttribute('min');
+    dateInput.removeAttribute('max');
+    
+    // For time select, replace with hidden input to avoid disabled issues
+    const timeInput = document.createElement('input');
+    timeInput.type = 'hidden';
+    timeInput.id = 'preferred-time';
+    timeInput.name = 'preferred-time';
+    timeSelect.parentNode.replaceChild(timeInput, timeSelect);
     
     // Hide labels too
     const dateLabel = document.querySelector('label[for="preferred-date"]');
@@ -496,35 +516,23 @@ class CalendarInterface {
     
     // Update the original form inputs with proper validation
     const dateInput = document.getElementById('preferred-date');
-    const timeSelect = document.getElementById('preferred-time');
+    const timeInput = document.getElementById('preferred-time'); // Now it's a hidden input
     
     if (dateInput) {
+      // Enable the input if it was disabled
+      dateInput.disabled = false;
       dateInput.value = this.selectedDate;
       // Trigger change event to ensure form validation
       dateInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
     
-    if (timeSelect) {
-      // For select element, we need to ensure the option exists
-      timeSelect.value = this.selectedTime;
-      
-      // If the option doesn't exist, create it
-      if (timeSelect.value !== this.selectedTime) {
-        const option = document.createElement('option');
-        option.value = this.selectedTime;
-        option.textContent = this.selectedTime;
-        option.selected = true;
-        timeSelect.appendChild(option);
-      }
+    if (timeInput) {
+      // For hidden input, just set the value directly
+      timeInput.value = this.selectedTime;
       
       // Trigger change event
-      timeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      timeInput.dispatchEvent(new Event('change', { bubbles: true }));
     }
-
-    // Debug logging
-    console.log('Time selected:', time);
-    console.log('Date input value:', dateInput?.value);
-    console.log('Time select value:', timeSelect?.value);
 
     // Visual feedback
     const timeButtons = document.querySelectorAll('#time-slots button');

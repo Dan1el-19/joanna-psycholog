@@ -38,8 +38,9 @@ console.error = (...args) => {
 // Initialize Cloud Functions
 export const functions = getFunctions(app);
 
-// Initialize Performance Monitoring
-export const perf = getPerformance(app);
+// Initialize Performance Monitoring (disabled to prevent CSS class attribute errors)
+// export const perf = getPerformance(app);
+export const perf = null; // Disabled performance monitoring
 
 // Connect to emulators in development
 // Commented out to use production Firebase instead of emulators

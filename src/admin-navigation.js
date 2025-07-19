@@ -1,5 +1,6 @@
 // Admin navigation system
-import { authSystem } from './auth.js';
+import { adminAuth } from './admin-auth.js';
+import { firebaseService } from './firebase-service.js';
 
 class AdminNavigation {
   constructor() {
@@ -17,17 +18,20 @@ class AdminNavigation {
   }
 
   setup() {
-    // Check authentication
-    if (!authSystem.verifyAuth()) {
-      this.showAuthRequired();
-      return;
-    }
-
-    this.isAuthenticated = true;
-    this.createAdminNavigation();
-    this.determineCurrentView();
+    // Wait for Firebase Auth to initialize instead of checking immediately
+    adminAuth.onAuthStateChanged((user) => {
+      if (user) {
+        // User is authenticated
+        this.isAuthenticated = true;
+        this.createAdminNavigation();
+        this.determineCurrentView();
+      } else {
+        // User is not authenticated
+        this.showAuthRequired();
+      }
+    });
     
-    // Set up global auth success handler
+    // Set up global auth success handler as fallback
     window.onAdminAuthSuccess = () => {
       this.isAuthenticated = true;
       this.createAdminNavigation();
@@ -128,6 +132,15 @@ class AdminNavigation {
                   Grafik
                 </button>
                 
+                <button id="nav-services" 
+                        class="nav-link px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
+                        onclick="adminNav.switchToView('services')">
+                  <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  Usługi
+                </button>
+                
                 <button id="nav-settings" 
                         class="nav-link px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200"
                         onclick="adminNav.switchToView('settings')">
@@ -139,7 +152,7 @@ class AdminNavigation {
                 </button>
                 
                 <div class="flex items-center space-x-4 ml-6 pl-6 border-l border-gray-200">
-                  <span class="text-sm text-gray-500">Admin</span>
+                  <span class="text-sm text-gray-500">${adminAuth.getCurrentUser()?.email || 'Admin'}</span>
                   <button onclick="adminNav.logout()" 
                           class="text-sm text-red-600 hover:text-red-800 transition-colors">
                     Wyloguj
@@ -169,6 +182,15 @@ class AdminNavigation {
                   Grafik
                 </button>
                 
+                <button id="nav-services-mobile" 
+                        class="nav-link-mobile w-full text-left px-3 py-3 rounded-md text-base font-medium transition-colors duration-200 flex items-center"
+                        onclick="adminNav.switchToView('services'); adminNav.closeMobileMenu();">
+                  <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  Usługi
+                </button>
+                
                 <button id="nav-settings-mobile" 
                         class="nav-link-mobile w-full text-left px-3 py-3 rounded-md text-base font-medium transition-colors duration-200 flex items-center"
                         onclick="adminNav.switchToView('settings'); adminNav.closeMobileMenu();">
@@ -181,7 +203,7 @@ class AdminNavigation {
                 
                 <div class="border-t border-gray-200 pt-4 mt-4">
                   <div class="px-3 py-2">
-                    <span class="text-sm text-gray-500">Zalogowany jako: Admin</span>
+                    <span class="text-sm text-gray-500">Zalogowany jako: ${adminAuth.getCurrentUser()?.email || 'Admin'}</span>
                   </div>
                   <button onclick="adminNav.logout()" 
                           class="w-full text-left px-3 py-3 rounded-md text-base font-medium text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors flex items-center">
@@ -224,14 +246,16 @@ class AdminNavigation {
     // Desktop navigation
     const navAppointments = document.getElementById('nav-appointments');
     const navSchedule = document.getElementById('nav-schedule');
+    const navServices = document.getElementById('nav-services');
     const navSettings = document.getElementById('nav-settings');
     
     // Mobile navigation
     const navAppointmentsMobile = document.getElementById('nav-appointments-mobile');
     const navScheduleMobile = document.getElementById('nav-schedule-mobile');
+    const navServicesMobile = document.getElementById('nav-services-mobile');
     const navSettingsMobile = document.getElementById('nav-settings-mobile');
     
-    const allNavs = [navAppointments, navSchedule, navSettings, navAppointmentsMobile, navScheduleMobile, navSettingsMobile].filter(Boolean);
+    const allNavs = [navAppointments, navSchedule, navServices, navSettings, navAppointmentsMobile, navScheduleMobile, navServicesMobile, navSettingsMobile].filter(Boolean);
     
     if (allNavs.length === 0) return;
 
@@ -329,6 +353,8 @@ class AdminNavigation {
         await this.loadScheduleView();
       } else if (view === 'settings') {
         await this.loadSettingsView();
+      } else if (view === 'services') {
+        await this.loadServicesView();
       }
     } catch (error) {
       console.error('Error switching view:', error);
@@ -653,6 +679,260 @@ class AdminNavigation {
     }
   }
 
+  async loadServicesView() {
+    const content = document.getElementById('admin-content');
+    if (!content) return;
+
+    try {
+      // Get existing services from database
+      const services = await firebaseService.getServices();
+      
+      content.innerHTML = `
+        <div class="space-y-6">
+          <div class="bg-white shadow rounded-lg p-4 sm:p-6">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-lg font-medium text-gray-900">Zarządzanie usługami</h2>
+              <button onclick="adminNav.showAddServiceModal()" 
+                      class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Dodaj usługę
+              </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nazwa</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Opis</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Czas trwania</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cena</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Akcje</th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="services-table-body">
+                  ${services.map(service => `
+                    <tr>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${service.name}</td>
+                      <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">${service.description || '-'}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.duration} min</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${service.price ? service.price + ' zł' : '-'}</td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <button onclick="adminNav.showEditServiceModal('${service.id}')" 
+                                class="text-blue-600 hover:text-blue-900">Edytuj</button>
+                        <button onclick="adminNav.deleteService('${service.id}')" 
+                                class="text-red-600 hover:text-red-900">Usuń</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              
+              ${services.length === 0 ? `
+                <div class="text-center py-8 text-gray-500">
+                  <svg class="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                  </svg>
+                  <p>Brak zdefiniowanych usług</p>
+                  <p class="text-sm">Dodaj pierwszą usługę, aby rozpocząć</p>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+        
+        <!-- Service Modal -->
+        <div id="service-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="px-6 py-4 border-b border-gray-200">
+              <h3 id="service-modal-title" class="text-lg font-medium text-gray-900">Dodaj usługę</h3>
+            </div>
+            
+            <form id="service-form" class="px-6 py-4 space-y-4">
+              <input type="hidden" id="service-id" value="">
+              
+              <div>
+                <label for="service-name" class="block text-sm font-medium text-gray-700">Nazwa usługi *</label>
+                <input type="text" id="service-name" required 
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+              </div>
+              
+              <div>
+                <label for="service-description" class="block text-sm font-medium text-gray-700">Opis</label>
+                <textarea id="service-description" rows="3" 
+                          class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea>
+              </div>
+              
+              <div>
+                <label for="service-duration" class="block text-sm font-medium text-gray-700">Czas trwania (minuty) *</label>
+                <input type="number" id="service-duration" required min="15" max="240" step="15" 
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+              </div>
+              
+              <div>
+                <label for="service-price" class="block text-sm font-medium text-gray-700">Cena (zł)</label>
+                <input type="number" id="service-price" min="0" step="0.01" 
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+              </div>
+              
+              <div>
+                <label for="service-slug" class="block text-sm font-medium text-gray-700">Identyfikator (slug) *</label>
+                <input type="text" id="service-slug" required pattern="[a-z0-9\-]+" 
+                       placeholder="np. terapia-indywidualna"
+                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                <p class="text-xs text-gray-500 mt-1">Tylko małe litery, cyfry i myślniki</p>
+              </div>
+            </form>
+            
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button onclick="adminNav.hideServiceModal()" 
+                      class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+                Anuluj
+              </button>
+              <button onclick="adminNav.saveService()" 
+                      class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                Zapisz
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+    } catch (error) {
+      console.error('Error loading services:', error);
+      content.innerHTML = `
+        <div class="bg-white shadow rounded-lg p-6">
+          <div class="text-center py-8 text-red-600">
+            <p>Błąd podczas ładowania usług</p>
+            <button onclick="adminNav.switchToView('services')" class="mt-2 text-blue-600 hover:text-blue-800">
+              Spróbuj ponownie
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  showAddServiceModal() {
+    const modal = document.getElementById('service-modal');
+    const title = document.getElementById('service-modal-title');
+    const form = document.getElementById('service-form');
+    
+    title.textContent = 'Dodaj usługę';
+    form.reset();
+    document.getElementById('service-id').value = '';
+    modal.classList.remove('hidden');
+  }
+
+  async showEditServiceModal(serviceId) {
+    try {
+      const services = await firebaseService.getServices();
+      const service = services.find(s => s.id === serviceId);
+      
+      if (!service) {
+        this.showMessage('Nie znaleziono usługi', 'error');
+        return;
+      }
+      
+      const modal = document.getElementById('service-modal');
+      const title = document.getElementById('service-modal-title');
+      
+      title.textContent = 'Edytuj usługę';
+      document.getElementById('service-id').value = service.id;
+      document.getElementById('service-name').value = service.name;
+      document.getElementById('service-description').value = service.description || '';
+      document.getElementById('service-duration').value = service.duration;
+      document.getElementById('service-price').value = service.price || '';
+      document.getElementById('service-slug').value = service.id;
+      
+      modal.classList.remove('hidden');
+    } catch (error) {
+      console.error('Error loading service for edit:', error);
+      this.showMessage('Błąd podczas ładowania usługi', 'error');
+    }
+  }
+
+  hideServiceModal() {
+    const modal = document.getElementById('service-modal');
+    modal.classList.add('hidden');
+  }
+
+  async saveService() {
+    try {
+      const serviceId = document.getElementById('service-id').value;
+      const name = document.getElementById('service-name').value.trim();
+      const description = document.getElementById('service-description').value.trim();
+      const duration = parseInt(document.getElementById('service-duration').value);
+      const price = parseFloat(document.getElementById('service-price').value) || null;
+      const slug = document.getElementById('service-slug').value.trim();
+      
+      if (!name || !duration || !slug) {
+        this.showMessage('Wypełnij wszystkie wymagane pola', 'error');
+        return;
+      }
+      
+      if (duration < 15 || duration > 240) {
+        this.showMessage('Czas trwania musi być między 15 a 240 minut', 'error');
+        return;
+      }
+      
+      if (!/^[a-z0-9\-]+$/.test(slug)) {
+        this.showMessage('Identyfikator może zawierać tylko małe litery, cyfry i myślniki', 'error');
+        return;
+      }
+      
+      const serviceData = {
+        name,
+        description: description || null,
+        duration,
+        price,
+        id: slug
+      };
+      
+      if (serviceId && serviceId !== slug) {
+        // ID changed, need to delete old and create new
+        await firebaseService.deleteService(serviceId);
+        await firebaseService.addService(serviceData);
+      } else if (serviceId) {
+        // Update existing
+        await firebaseService.updateService(serviceId, serviceData);
+      } else {
+        // Add new
+        await firebaseService.addService(serviceData);
+      }
+      
+      this.hideServiceModal();
+      this.showMessage('Usługa została zapisana', 'success');
+      
+      // Reload services view
+      await this.loadServicesView();
+      
+    } catch (error) {
+      console.error('Error saving service:', error);
+      this.showMessage('Błąd podczas zapisywania usługi', 'error');
+    }
+  }
+
+  async deleteService(serviceId) {
+    if (!confirm('Czy na pewno chcesz usunąć tę usługę? Ta operacja jest nieodwracalna.')) {
+      return;
+    }
+    
+    try {
+      await firebaseService.deleteService(serviceId);
+      this.showMessage('Usługa została usunięta', 'success');
+      
+      // Reload services view
+      await this.loadServicesView();
+      
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      this.showMessage('Błąd podczas usuwania usługi', 'error');
+    }
+  }
+
   async initializeSchedulePanel() {
     // Wait a bit for the schedule admin to initialize
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -696,10 +976,16 @@ class AdminNavigation {
     }
   }
 
-  logout() {
+  async logout() {
     if (confirm('Czy na pewno chcesz się wylogować?')) {
-      authSystem.logout();
-      window.location.href = '/';
+      try {
+        await adminAuth.logout();
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Error during logout:', error);
+        // Force redirect even if logout fails
+        window.location.href = '/';
+      }
     }
   }
 

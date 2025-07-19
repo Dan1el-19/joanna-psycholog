@@ -158,7 +158,7 @@ class AdminPanel {
       
       if (response.success) {
         this.appointments = response.appointments;
-        this.renderAppointments();
+        await this.renderAppointments();
       } else {
         throw new Error(response.message || 'Failed to load appointments');
       }
@@ -218,7 +218,7 @@ class AdminPanel {
     }
   }
 
-  renderAppointments() {
+  async renderAppointments() {
     const listContainer = document.getElementById('appointments-list');
     
     if (!listContainer) {
@@ -235,11 +235,14 @@ class AdminPanel {
       return;
     }
 
-    const appointmentsHtml = this.appointments.map(appointment => this.renderAppointmentCard(appointment)).join('');
-    listContainer.innerHTML = appointmentsHtml;
+    // Render appointments with service names from database
+    const appointmentCards = await Promise.all(
+      this.appointments.map(appointment => this.renderAppointmentCard(appointment))
+    );
+    listContainer.innerHTML = appointmentCards.join('');
   }
 
-  renderAppointmentCard(appointment) {
+  async renderAppointmentCard(appointment) {
     const statusColors = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
       confirmed: 'bg-green-100 text-green-800 border-green-200',
@@ -266,12 +269,47 @@ class AdminPanel {
       failed: 'Błąd płatności'
     };
 
-    const serviceLabels = {
-      'terapia-indywidualna': 'Terapia Indywidualna',
-      'terapia-par': 'Terapia Par',
-      'terapia-rodzinna': 'Terapia Rodzinna',
-      'konsultacje-online': 'Konsultacje online'
-    };
+    // POBIERANIE USŁUG I CEN Z BAZY DANYCH
+    let serviceName = appointment.service;
+    let servicePrice = null;
+    let serviceDuration = 50; // domyślny czas
+    
+    try {
+  const services = await firebaseService.getServices();
+  console.log('Dostępne usługi:', services);
+  
+  const serviceObj = services.find(s => s.id === appointment.service);
+  
+  if (serviceObj) {
+    serviceName = serviceObj.name || serviceName;
+    servicePrice = serviceObj.price || null;
+    serviceDuration = serviceObj.duration || 50;
+    console.log(`Znaleziono usługę: ${serviceName}, cena: ${servicePrice}`);
+  }
+} catch (error) {
+  console.error('Błąd podczas pobierania usług z bazy danych:', error);
+}
+
+    // DYNAMICZNA KALKULACJA CENY NA PODSTAWIE BAZY DANYCH
+    let priceDisplay = '';
+    if (servicePrice) {
+      if (appointment.isFirstSession) {
+        const discountedPrice = Math.round(servicePrice * 0.5);
+        priceDisplay = `
+          <p class="text-xs md:text-sm text-blue-600">
+            <strong>Cena:</strong> ${discountedPrice} PLN 
+            <span class="text-green-600">(50% zniżki - pierwsze spotkanie)</span>
+            <br><span class="text-xs text-gray-500">Cena regularna: ${servicePrice} PLN</span>
+          </p>
+        `;
+      } else {
+        priceDisplay = `
+          <p class="text-xs md:text-sm text-blue-600">
+            <strong>Cena:</strong> ${servicePrice} PLN
+          </p>
+        `;
+      }
+    }
 
     return `
       <div class="bg-gray-50 p-3 sm:p-4 md:p-6 rounded-lg border">
@@ -287,7 +325,7 @@ class AdminPanel {
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
           <div class="space-y-1 sm:space-y-2">
-            <p class="text-xs sm:text-sm text-gray-600"><strong>Usługa:</strong> <span class="break-words">${serviceLabels[appointment.service] || appointment.service}</span></p>
+            <p class="text-xs sm:text-sm text-gray-600"><strong>Usługa:</strong> <span class="break-words">${serviceName}</span></p>
             <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowany termin:</strong> ${appointment.preferredDate || 'Nie podano'}</p>
             <p class="text-xs sm:text-sm text-gray-600"><strong>Preferowana godzina:</strong> ${appointment.preferredTime || 'Nie podano'}</p>
           </div>
@@ -297,9 +335,7 @@ class AdminPanel {
             ${appointment.sessionCompleted ? `
               <p class="text-xs md:text-sm text-green-600"><strong>Sesja odbyła się:</strong> ${appointment.sessionCompletedDate ? (appointment.sessionCompletedDate.toDate ? appointment.sessionCompletedDate.toDate().toLocaleDateString('pl-PL') : new Date(appointment.sessionCompletedDate).toLocaleDateString('pl-PL')) : 'Tak'}</p>
             ` : ''}
-            ${appointment.calculatedPrice ? `
-              <p class="text-xs md:text-sm text-blue-600"><strong>Cena:</strong> ${appointment.calculatedPrice} PLN${appointment.isFirstSession ? ' (pierwsze spotkanie)' : ''}</p>
-            ` : ''}
+            ${priceDisplay}
             ${appointment.paymentStatus ? `
               <p class="text-xs md:text-sm">
                 <strong>Status płatności:</strong> 
@@ -343,14 +379,14 @@ class AdminPanel {
             </button>
           ` : ''}
           
-          ${appointment.status !== 'cancelled' ? `
+          ${appointment.status !== 'cancelled' && appointment.status !== 'completed' ? `
             <button onclick="adminPanel.updateAppointmentStatus('${appointment.id}', 'cancelled')" 
                     class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-xs sm:text-sm">
               Anuluj
             </button>
           ` : ''}
           
-          ${appointment.paymentStatus !== 'paid' ? `
+          ${appointment.paymentStatus !== 'paid' && appointment.status !== 'cancelled' ? `
             <button onclick="adminPanel.showPaymentDialog('${appointment.id}', '${appointment.paymentStatus || 'pending'}', '${appointment.paymentMethod || ''}')" 
                     class="px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-xs sm:text-sm">
               Płatność
@@ -362,7 +398,7 @@ class AdminPanel {
             ${appointment.notes ? 'Edytuj notatki' : 'Dodaj notatki'}
           </button>
           
-          ${appointment.status === 'confirmed' ? `
+          ${(appointment.status === 'confirmed' || appointment.status === 'pending') && appointment.status !== 'completed' ? `
             <button onclick="adminPanel.showRescheduleDialog('${appointment.id}', '${appointment.preferredDate}', '${appointment.preferredTime}')" 
                     class="px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs md:text-sm">
               Przełóż
@@ -385,15 +421,13 @@ class AdminPanel {
     `;
   }
 
+  // Pozostałe metody bez zmian...
   async updateAppointmentStatus(appointmentId, newStatus) {
-    // Verify authentication before performing admin actions
-    if (!this.verifyAdminAccess()) {
-      return;
-    }
+    if (!this.verifyAdminAccess()) return;
 
     try {
       await firebaseService.updateAppointment(appointmentId, { status: newStatus });
-      this.loadAppointments(); // Refresh the list
+      this.loadAppointments();
       this.showSuccess(`Status wizyty został zmieniony na: ${newStatus}`);
     } catch (error) {
       console.error('Error updating appointment:', error);
@@ -401,11 +435,7 @@ class AdminPanel {
     }
   }
 
-  /**
-   * Verify admin access before sensitive operations
-   */
   verifyAdminAccess() {
-    // Check if we're authenticated and session is valid
     const authStatus = authSystem.getAuthStatus();
     if (!authStatus.isAuthenticated || !authStatus.sessionValid) {
       this.showError('Sesja wygasła. Zaloguj się ponownie.');
@@ -415,9 +445,6 @@ class AdminPanel {
     return true;
   }
 
-  /**
-   * Logout function
-   */
   logout() {
     if (confirm('Czy na pewno chcesz się wylogować?')) {
       authSystem.logout();
@@ -437,7 +464,7 @@ class AdminPanel {
   async updateAppointmentNotes(appointmentId, notes) {
     try {
       await firebaseService.updateAppointment(appointmentId, { notes });
-      this.loadAppointments(); // Refresh the list
+      this.loadAppointments();
       this.showSuccess('Notatki zostały zaktualizowane');
     } catch (error) {
       console.error('Error updating notes:', error);
@@ -446,9 +473,7 @@ class AdminPanel {
   }
 
   async markSessionCompleted(appointmentId) {
-    if (!this.verifyAdminAccess()) {
-      return;
-    }
+    if (!this.verifyAdminAccess()) return;
 
     if (confirm('Czy na pewno chcesz oznaczyć tę sesję jako odbytą?')) {
       try {
@@ -456,7 +481,7 @@ class AdminPanel {
           sessionCompleted: true,
           sessionCompletedDate: Date.now()
         });
-        this.loadAppointments(); // Refresh the list
+        this.loadAppointments();
         this.showSuccess('Sesja została oznaczona jako odbyta');
       } catch (error) {
         console.error('Error marking session as completed:', error);
@@ -474,7 +499,6 @@ class AdminPanel {
   }
 
   showMessage(message, type) {
-    // Create message element
     const messageDiv = document.createElement('div');
     messageDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
       type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 
@@ -483,16 +507,9 @@ class AdminPanel {
     messageDiv.innerHTML = message;
 
     document.body.appendChild(messageDiv);
-
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (messageDiv.parentNode) {
-        messageDiv.remove();
-      }
-    }, 5000);
+    setTimeout(() => messageDiv.remove(), 5000);
   }
 
-  // Payment dialog
   showPaymentDialog(appointmentId, currentPaymentStatus, currentPaymentMethod) {
     const dialog = document.createElement('div');
     dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -546,7 +563,6 @@ class AdminPanel {
     document.body.appendChild(dialog);
   }
 
-  // Reschedule dialog
   showRescheduleDialog(appointmentId, currentDate, currentTime) {
     const dialog = document.createElement('div');
     dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -604,13 +620,9 @@ class AdminPanel {
   }
 
   async archiveAppointment(appointmentId) {
-    if (!this.verifyAdminAccess()) {
-      return;
-    }
+    if (!this.verifyAdminAccess()) return;
 
-    if (!confirm('Czy na pewno chcesz zarchiwizować tę wizytę?')) {
-      return;
-    }
+    if (!confirm('Czy na pewno chcesz zarchiwizować tę wizytę?')) return;
 
     try {
       await firebaseService.archiveAppointment(appointmentId);
@@ -623,13 +635,9 @@ class AdminPanel {
   }
 
   async unarchiveAppointment(appointmentId) {
-    if (!this.verifyAdminAccess()) {
-      return;
-    }
+    if (!this.verifyAdminAccess()) return;
 
-    if (!confirm('Czy na pewno chcesz przywrócić tę wizytę z archiwum?')) {
-      return;
-    }
+    if (!confirm('Czy na pewno chcesz przywrócić tę wizytę z archiwum?')) return;
 
     try {
       await firebaseService.unarchiveAppointment(appointmentId);
@@ -642,18 +650,17 @@ class AdminPanel {
   }
 
   async performMaintenanceCleanup() {
-    if (!this.verifyAdminAccess()) {
-      return;
-    }
+    if (!this.verifyAdminAccess()) return;
 
-    if (!confirm('Czy na pewno chcesz uruchomić proces czyszczenia bazy danych?\n\nTa operacja usunie wszystkie wizyty starsze niż 12 miesięcy.')) {
-      return;
-    }
+    if (!confirm('Czy na pewno chcesz uruchomić proces czyszczenia bazy danych?\n\nTa operacja usunie wszystkie wizyty starsze niż 12 miesięcy.')) return;
 
     try {
       const result = await firebaseService.performDailyMaintenance();
       this.showMessage(`Czyszczenie zakończone. Usunięto ${result.cleanupResults?.appointments?.deletedCount || 0} starych wizyt.`, 'success');
-      this.loadAppointments();
+      
+      if (document.getElementById('appointments-list')) {
+        this.loadAppointments();
+      }
     } catch (error) {
       console.error('Error during maintenance cleanup:', error);
       this.showMessage('Błąd podczas czyszczenia bazy danych: ' + error.message, 'error');
