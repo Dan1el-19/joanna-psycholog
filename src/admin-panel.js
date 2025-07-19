@@ -1,6 +1,7 @@
 // Admin panel for managing appointments
 import firebaseService from './firebase-service.js';
 import { authSystem } from './auth.js';
+import pricingService from './pricing-service.js'
 
 class AdminPanel {
   constructor() {

@@ -32,7 +32,7 @@ export const sendAppointmentConfirmation = onDocumentCreated(
 
       console.log('Sending appointment confirmation for:', appointmentId);
 
-      // Calculate pricing for this appointment
+      // Calculate pricing for this appointment with enhanced service data
       const pricing = await calculatePricing(appointmentData.service, appointmentData.email);
 
       // Generate reservation token
@@ -62,8 +62,8 @@ export const sendAppointmentConfirmation = onDocumentCreated(
         isUsed: false
       });
 
-      // Get service name for email templates
-      const serviceName = await getServiceName(appointmentData.service);
+      // Use service name from pricing calculation (already fetched from database)
+      const serviceName = pricing.serviceName;
 
       // Send confirmation email to client
       const clientEmailDoc = {
@@ -123,7 +123,7 @@ export const sendAppointmentConfirmation = onDocumentCreated(
 
       // Send notification email to therapist
       const therapistEmailDoc = {
-        to: 'j.rudzinska@myreflection.pl', // Zmień na prawdziwy adres email
+        to: 'j.rudzinska@myreflection.pl',
         message: {
           subject: `Nowa wizyta: ${appointmentData.name} - ${serviceName}`,
           html: `
@@ -202,9 +202,10 @@ export const sendAppointmentApproval = onDocumentUpdated(
         const originalPrice = afterData.originalServicePrice || afterData.basePrice;
         const isFirstSession = afterData.isFirstSession || false;
 
-        // Get service name and duration for email templates
-        const serviceName = await getServiceName(afterData.service);
-        const serviceDuration = await getServiceDuration(afterData.service);
+        // Get service data for email templates (single database call)
+        const serviceData = await getServiceData(afterData.service);
+        const serviceName = serviceData?.name || afterData.service;
+        const serviceDuration = serviceData?.duration || 50;
 
         // Send approval email to client
         const approvalEmailDoc = {
@@ -279,50 +280,19 @@ export const sendAppointmentApproval = onDocumentUpdated(
 );
 
 /**
- * Helper function to get service display name from database
+ * Helper function to get service display name from database (enhanced)
  */
 async function getServiceName(serviceCode: string): Promise<string> {
-  try {
-    const serviceDoc = await db.collection('services').doc(serviceCode).get();
-    if (serviceDoc.exists) {
-      const serviceData = serviceDoc.data();
-      return serviceData?.name || serviceCode;
-    }
-  } catch (error) {
-    console.warn('Could not fetch service name from database:', error);
-  }
-
-  // Fallback to display names only for existing services
-  const services: Record<string, string> = {
-    'terapia-indywidualna': 'Terapia Indywidualna',
-    'terapia-par': 'Terapia Par', 
-    'terapia-rodzinna': 'Terapia Rodzinna',
-    'konsultacje-online': 'Konsultacje online'
-  };
-  return services[serviceCode] || serviceCode;
+  const serviceData = await getServiceData(serviceCode);
+  return serviceData?.name || serviceCode;
 }
 
 /**
- * Helper function to get service duration from database
+ * Helper function to get service duration from database (enhanced)
  */
 async function getServiceDuration(serviceCode: string): Promise<number> {
-  try {
-    const serviceDoc = await db.collection('services').doc(serviceCode).get();
-    if (serviceDoc.exists) {
-      const serviceData = serviceDoc.data();
-      return serviceData?.duration || 50;
-    }
-  } catch (error) {
-    console.warn('Could not fetch service duration from database:', error);
-  }
-
-  // Fallback for existing services only
-  const durations: Record<string, number> = {
-    'terapia-indywidualna': 50,
-    'terapia-par': 90,
-    'terapia-rodzinna': 90
-  };
-  return durations[serviceCode] || 50;
+  const serviceData = await getServiceData(serviceCode);
+  return serviceData?.duration || 50;
 }
 
 /**
@@ -344,22 +314,43 @@ async function hasCompletedSession(email: string): Promise<boolean> {
 }
 
 /**
- * Calculate pricing based on service and user history
+ * Get service data from database (similar to admin panel logic)
  */
-async function calculatePricing(service: string, email: string) {
-  let basePrice = 150; // Default price
-  
+async function getServiceData(serviceId: string) {
   try {
-    const serviceDoc = await db.collection('services').doc(service).get();
-    if (serviceDoc.exists) {
-      const serviceData = serviceDoc.data();
-      basePrice = serviceData?.price || 150;
+    const servicesSnapshot = await db.collection('services').get();
+    const services = servicesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log('Dostępne usługi:', services);
+    
+    const serviceObj = services.find((s: any) => s.id === serviceId);
+    
+    if (serviceObj) {
+      console.log(`Znaleziono usługę: ${serviceObj.name}, cena: ${serviceObj.price}`);
+      return {
+        name: serviceObj.name || serviceId,
+        price: serviceObj.price || null,
+        duration: serviceObj.duration || 50
+      };
     }
   } catch (error) {
-    console.warn('Could not fetch service price from database:', error);
-    // Use default price if database fetch fails
-    basePrice = 150;
+    console.error('Błąd podczas pobierania usług z bazy danych:', error);
   }
+  
+  return null;
+}
+
+/**
+ * Calculate pricing based on service and user history (enhanced with admin panel logic)
+ */
+async function calculatePricing(service: string, email: string) {
+  // Pobierz dane usługi z bazy danych
+  const serviceData = await getServiceData(service);
+  let basePrice = serviceData?.price || 150; // Default price tylko jeśli nie ma w bazie
+  
   const hasCompletedBefore = await hasCompletedSession(email);
   const isFirstSession = !hasCompletedBefore;
   const finalPrice = isFirstSession ? Math.round(basePrice * 0.5) : basePrice;
@@ -368,7 +359,9 @@ async function calculatePricing(service: string, email: string) {
     basePrice,
     finalPrice,
     isFirstSession,
-    discount: isFirstSession ? 50 : 0
+    discount: isFirstSession ? 50 : 0,
+    serviceName: serviceData?.name || service,
+    serviceDuration: serviceData?.duration || 50
   };
 }
 
@@ -422,9 +415,10 @@ export const sendAppointmentReminders = onSchedule(
         
         console.log(`Sending reminder for appointment ${appointmentId}`);
         
-        // Get service details
-        const serviceName = await getServiceName(appointment.service);
-        const serviceDuration = await getServiceDuration(appointment.service);
+        // Get service details (single database call)
+        const serviceData = await getServiceData(appointment.service);
+        const serviceName = serviceData?.name || appointment.service;
+        const serviceDuration = serviceData?.duration || 50;
         
         // Create reminder email
         const reminderEmailDoc = {
@@ -526,9 +520,10 @@ export const sendAppointmentRemindersManual = onDocumentCreated(
         
         console.log(`Sending manual reminder for appointment ${appointmentId}`);
         
-        // Get service details
-        const serviceName = await getServiceName(appointment.service);
-        const serviceDuration = await getServiceDuration(appointment.service);
+        // Get service details (single database call)
+        const serviceData = await getServiceData(appointment.service);
+        const serviceName = serviceData?.name || appointment.service;
+        const serviceDuration = serviceData?.duration || 50;
         
         // Create reminder email (same as scheduled version)
         const reminderEmailDoc = {
@@ -624,7 +619,8 @@ export const sendCancellationEmail = onDocumentUpdated(
         const originalTime = beforeData.preferredTime || beforeData.confirmedTime;
 
         // Get service name for email templates
-        const serviceName = await getServiceName(afterData.service);
+        const serviceData = await getServiceData(afterData.service);
+        const serviceName = serviceData?.name || afterData.service;
 
         // Send cancellation email to client
         const clientEmailDoc = {
@@ -742,7 +738,8 @@ export const sendRescheduleEmail = onDocumentUpdated(
         const newTime = afterData.preferredTime || afterData.confirmedTime;
 
         // Get service name for email templates
-        const serviceName = await getServiceName(afterData.service);
+        const serviceData = await getServiceData(afterData.service);
+        const serviceName = serviceData?.name || afterData.service;
 
         // Send reschedule email to client
         const clientEmailDoc = {
@@ -860,7 +857,8 @@ export const sendPaymentStatusEmail = onDocumentUpdated(
         const price = afterData.calculatedPrice || afterData.basePrice || 'do ustalenia';
 
         // Get service name for email templates
-        const serviceName = await getServiceName(afterData.service);
+        const serviceData = await getServiceData(afterData.service);
+        const serviceName = serviceData?.name || afterData.service;
 
         let clientEmailDoc;
 
