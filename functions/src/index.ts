@@ -109,8 +109,7 @@ const generateEmailHTML = (title: string, preheader: string, content: string): s
               </tr>
               <tr>
                   <td class="footer">
-                      <p><strong>Joanna Rudzińska - Psycholog</strong></p>
-                      <p>ul. Przykładowa 1, 90-001 Łódź</p>
+                      <p><strong>Joanna Rudzińska-Łodyga</strong></p>
                       <p><a href="mailto:j.rudzinska@myreflection.pl">j.rudzinska@myreflection.pl</a> | <a href="https://myreflection.pl">myreflection.pl</a></p>
                   </td>
               </tr>
@@ -185,28 +184,31 @@ export const sendAppointmentConfirmation = onDocumentCreated(
             ${augmentedData.isFirstSession ? `
               <p style="color: #059669; font-weight: bold; margin: 10px 0 0;">🎉 Pierwsze spotkanie - 50% zniżki!</p>
               <p style="font-size: 14px; color: #555; margin: 5px 0 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
-            ` : `
-              <p style="font-size: 14px; color: #555; margin: 5px 0 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
-            `}
+            ` : ``}
+            <p style="margin-top: 20px;">
+                <a style="color: #ffffff" href="https://www.paypal.com/paypalme/myreflectionjoanna/${augmentedData.finalPrice}PLN" class="button">
+                    Zapłać (PayPal)
+                </a>
+            </p>
         </div>
 
         <div class="section section-blue">
             <h3>Co dalej?</h3>
             <p>Możesz zarządzać swoją rezerwacją (zmienić termin lub ją anulować) korzystając z poniższego przycisku. Pamiętaj, że anulowanie jest możliwe do 24h przed wizytą.</p>
             <p style="margin-top: 20px;">
-                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" class="button">
+                <a style="color: #ffffff" href="https://myreflection.pl/manage-reservation/${reservationToken}" class="button">
                     Zarządzaj rezerwacją
                 </a>
             </p>
         </div>
 
-        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
+        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong></p>
       `;
 
       const clientEmailDoc = {
         to: augmentedData.email,
         message: {
-          subject: 'Potwierdzenie zgłoszenia - Joanna Rudzińska Psycholog',
+          subject: 'Potwierdzenie zgłoszenia - My Reflection',
           html: generateEmailHTML('Potwierdzenie zgłoszenia', 'Otrzymałam Twoje zgłoszenie wizyty.', clientEmailContent),
         }
       };
@@ -283,24 +285,28 @@ export const sendAppointmentApproval = onDocumentUpdated(
               <p><strong>Koszt:</strong> ${afterData.calculatedPrice} PLN</p>
               ${afterData.location ? `<p><strong>Miejsce:</strong> ${afterData.location}</p>` : ''}
               ${afterData.adminNotes ? `<p><strong>Dodatkowe informacje:</strong> ${afterData.adminNotes}</p>` : ''}
+              <p style="margin-top: 20px;">
+                <a style="color: #ffffff" href="https://www.paypal.com/paypalme/myreflectionjoanna/${afterData.calculatedPrice}PLN" class="button">
+                    Zapłać (PayPal)
+                </a>
             </div>
 
             <div class="section section-blue">
                 <h3>Zarządzanie rezerwacją</h3>
                 <p>W razie potrzeby, możesz zarządzać swoją rezerwacją (np. zmienić termin) korzystając z poniższego przycisku.</p>
                 <p style="margin-top: 20px;">
-                    <a href="https://myreflection.pl/manage-reservation/${afterData.reservationToken}" class="button">
+                    <a style="color: #ffffff" href="https://myreflection.pl/manage-reservation/${afterData.reservationToken}" class="button">
                         Zarządzaj rezerwacją
                     </a>
                 </p>
             </div>
-            <p>Do zobaczenia,<br><strong>Joanna Rudzińska</strong></p>
+            <p>Do zobaczenia,<br><strong>Joanna Rudzińska-Łodyga</strong></p>
         `;
 
         const approvalEmailDoc = {
           to: afterData.email,
           message: {
-            subject: '✅ Wizyta potwierdzona - Joanna Rudzińska Psycholog',
+            subject: '✅ Wizyta potwierdzona - My Reflection',
             html: generateEmailHTML('Wizyta Potwierdzona', 'Twoja wizyta została potwierdzona.', approvalEmailContent)
           }
         };
@@ -369,13 +375,13 @@ export const sendAppointmentReminders = onSchedule(
                     </a>
                 </p>
             </div>
-            <p>Do zobaczenia jutro!<br><strong>Joanna Rudzińska</strong></p>
+            <p>Do zobaczenia jutro!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
         `;
 
         const reminderEmailDoc = {
           to: appointment.email,
           message: {
-            subject: '📅 Przypomnienie o wizycie jutro - Joanna Rudzińska Psycholog',
+            subject: '📅 Przypomnienie o wizycie jutro -My Reflection',
             html: generateEmailHTML('Przypomnienie o wizycie', `Przypominamy o Twojej wizycie jutro o ${appointment.confirmedTime}.`, reminderContent)
           }
         };
@@ -427,13 +433,13 @@ export const sendCancellationEmail = onDocumentUpdated(
                 <p><strong>Data:</strong> ${originalDate}</p>
                 <p><strong>Godzina:</strong> ${originalTime}</p>
             </div>
-            <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
+            <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong></p>
         `;
 
         const clientEmailDoc = {
           to: afterData.email,
           message: {
-            subject: 'Anulowanie wizyty - Joanna Rudzińska',
+            subject: 'Anulowanie wizyty - My Reflection',
             html: generateEmailHTML('Anulowanie wizyty', 'Twoja wizyta została anulowana.', cancellationContent)
           }
         };
@@ -496,13 +502,13 @@ export const sendRescheduleEmail = onDocumentUpdated(
                 <p><strong>Data:</strong> ${newDate}</p>
                 <p><strong>Godzina:</strong> ${newTime}</p>
             </div>
-            <p>Do zobaczenia w nowym terminie!<br><strong>Joanna Rudzińska</strong></p>
+            <p>Do zobaczenia w nowym terminie!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
         `;
 
         const clientEmailDoc = {
           to: afterData.email,
           message: {
-            subject: 'Przełożenie wizyty - Joanna Rudzińska',
+            subject: 'Przełożenie wizyty - My Reflection',
             html: generateEmailHTML('Zmiana terminu wizyty', `Twoja wizyta została przełożona na ${newDate}.`, rescheduleContent)
           }
         };
@@ -543,7 +549,7 @@ export const sendPaymentStatusEmail = onDocumentUpdated(
         let subject = '';
 
         if (afterData.paymentStatus === 'paid') {
-            subject = 'Potwierdzenie płatności - Joanna Rudzińska';
+            subject = 'Potwierdzenie płatności - My Reflection';
             paymentContent = `
                 <h2>Płatność potwierdzona</h2>
                 <p>Dzień dobry ${afterData.name},</p>
@@ -553,10 +559,10 @@ export const sendPaymentStatusEmail = onDocumentUpdated(
                     <p><strong>Kwota:</strong> ${afterData.calculatedPrice} PLN</p>
                     <p><strong>Status:</strong> Opłacona</p>
                 </div>
-                <p>Do zobaczenia na wizycie!<br><strong>Joanna Rudzińska</strong></p>
+                <p>Do zobaczenia na wizycie!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
             `;
         } else if (afterData.paymentStatus === 'failed') {
-            subject = 'Problem z płatnością - Joanna Rudzińska';
+            subject = 'Problem z płatnością - My Reflection';
             paymentContent = `
                 <h2>Problem z płatnością</h2>
                 <p>Dzień dobry ${afterData.name},</p>
@@ -566,7 +572,7 @@ export const sendPaymentStatusEmail = onDocumentUpdated(
                     <p><strong>Kwota:</strong> ${afterData.calculatedPrice} PLN</p>
                     <p><strong>Status:</strong> Nieudana</p>
                 </div>
-                <p>Z poważaniem,<br><strong>Joanna Rudzińska</strong></p>
+                <p>Z poważaniem,<br><strong>Joanna Rudzińska-Łodyga</strong></p>
             `;
         }
 
@@ -657,6 +663,127 @@ function generateUniqueToken(): string {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+// --- Contact Form Function ---
+export const sendContactFormEmail = onDocumentCreated(
+  {
+    document: 'contactMessages/{messageId}',
+    region: 'europe-central2'
+  },
+  async (event) => {
+    try {
+      const messageData = event.data?.data();
+      const messageId = event.params.messageId;
+
+      if (!messageData) {
+        console.warn('No contact message data found');
+        return;
+      }
+
+      console.log('Processing contact form submission:', messageId);
+
+      const { name, email, phone, subject, message, createdAt } = messageData;
+
+      // Email to the therapist (Joanna)
+      const therapistEmailContent = `
+        <h2>Nowa wiadomość z formularza kontaktowego</h2>
+        <div class="section section-blue">
+          <h3>Dane nadawcy</h3>
+          <p><strong>Imię i nazwisko:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          ${phone ? `<p><strong>Telefon:</strong> ${phone}</p>` : ''}
+          <p><strong>Temat:</strong> ${getSubjectLabel(subject)}</p>
+        </div>
+        <div class="section section-green">
+          <h3>Treść wiadomości</h3>
+          <p style="white-space: pre-wrap;">${message}</p>
+        </div>
+        <p><strong>Data wysłania:</strong> ${new Date(createdAt?.toDate()).toLocaleString('pl-PL')}</p>
+        <p style="margin-top: 30px;">
+          <a href="mailto:${email}" class="button">Odpowiedz bezpośrednio</a>
+        </p>
+      `;
+
+      // Confirmation email to the sender
+      const confirmationEmailContent = `
+        <h2>Dziękuję za wiadomość!</h2>
+        <p>Dzień dobry ${name},</p>
+        <p>Otrzymałam Państwa wiadomość wysłaną przez formularz kontaktowy na stronie. Dziękuję za zainteresowanie moimi usługami.</p>
+        
+        <div class="section section-blue">
+          <h3>Podsumowanie Państwa wiadomości</h3>
+          <p><strong>Temat:</strong> ${getSubjectLabel(subject)}</p>
+          <p><strong>Data wysłania:</strong> ${new Date(createdAt?.toDate()).toLocaleString('pl-PL')}</p>
+        </div>
+
+        <div class="section section-green">
+          <h3>Co dalej?</h3>
+          <p>Postaram się odpowiedzieć na Państwa wiadomość w ciągu <strong>24 godzin</strong>. W przypadku pilnych spraw, proszę o bezpośredni kontakt telefoniczny.</p>
+          <p>Jeśli chcieliby Państwo od razu umówić wizytę, mogą to Państwo zrobić przez system rezerwacji online:</p>
+          <p style="margin-top: 20px;">
+            <a href="https://myreflection.pl/umow-wizyte" class="button">Umów wizytę online</a>
+          </p>
+        </div>
+
+        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong><br>Psycholog</p>
+      `;
+
+      // Send email to therapist
+      const therapistEmailDoc = {
+        to: 'j.rudzinska@myreflection.pl',
+        message: {
+          subject: `Formularz kontaktowy: ${getSubjectLabel(subject)} - ${name}`,
+          html: generateEmailHTML('Nowa wiadomość kontaktowa', `Otrzymałaś nową wiadomość od ${name}.`, therapistEmailContent),
+          replyTo: email
+        }
+      };
+
+      // Send confirmation email to sender
+      const confirmationEmailDoc = {
+        to: email,
+        message: {
+          subject: 'Potwierdzenie otrzymania wiadomości - My Reflection',
+          html: generateEmailHTML('Dziękuję za wiadomość', 'Otrzymałam Twoją wiadomość i odpowiem wkrótce.', confirmationEmailContent)
+        }
+      };
+
+      // Send both emails
+      await Promise.all([
+        db.collection('mail').add(therapistEmailDoc),
+        db.collection('mail').add(confirmationEmailDoc)
+      ]);
+
+      // Mark as processed
+      await event.data?.ref.update({
+        emailsSent: true,
+        emailsSentAt: FieldValue.serverTimestamp(),
+        processed: true
+      });
+
+      console.log('Contact form emails sent successfully for:', messageId);
+
+    } catch (error) {
+      console.error('Error processing contact form:', error);
+      
+      // Mark as failed
+      await event.data?.ref.update({
+        emailsSent: false,
+        emailError: error instanceof Error ? error.message : String(error),
+        processed: true
+      });
+    }
+  }
+);
+
+function getSubjectLabel(subject: string): string {
+  const subjects = {
+    'appointment': 'Umówienie wizyty',
+    'question': 'Pytanie o terapię',
+    'info': 'Informacje o usługach',
+    'other': 'Inne'
+  };
+  return subjects[subject as keyof typeof subjects] || subject || 'Nie określono';
 }
 
 // --- Maintenance Functions (Unchanged) ---

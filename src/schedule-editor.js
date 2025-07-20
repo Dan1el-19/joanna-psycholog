@@ -36,6 +36,7 @@ class ScheduleEditor {
           const id = actionElement.dataset.id;
           const day = actionElement.dataset.day;
 
+
           switch (action) {
               case 'show-create-template-modal': this.showCreateTemplateModal(); break;
               case 'hide-create-template-modal': this.hideCreateTemplateModal(); break;
@@ -337,7 +338,12 @@ class ScheduleEditor {
   }
 
   showCreateTemplateModal = () => document.getElementById('create-template-modal')?.classList.remove('hidden');
-  hideCreateTemplateModal = () => document.getElementById('create-template-modal')?.classList.add('hidden');
+  hideCreateTemplateModal = () => {
+    const modal = document.getElementById('create-template-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  };
   showAssignTemplateModal() {
     const modal = document.getElementById('assign-template-modal');
     if (modal) {
@@ -482,9 +488,15 @@ class ScheduleEditor {
       
       document.body.appendChild(modal);
       
-      // Close modal when clicking outside
+      // Add event listeners directly to this modal since it's outside the main container
       modal.addEventListener('click', (event) => {
         if (event.target === modal) {
+          modal.remove();
+        }
+        
+        // Handle close button clicks
+        const actionElement = event.target.closest('[data-action]');
+        if (actionElement && actionElement.dataset.action === 'close-edit-template-modal') {
           modal.remove();
         }
       });

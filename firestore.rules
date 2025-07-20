@@ -113,5 +113,17 @@ service cloud.firestore {
       // Only admins can write services
       allow write: if isAdmin();
     }
+
+    // KOLEKCJA "contactMessages" - wiadomości z formularza kontaktowego
+    match /contactMessages/{messageId} {
+      // Anyone can create contact messages (public contact form)
+      allow create: if true;
+      // Only admins can read contact messages
+      allow read: if isAdmin();
+      // Only Cloud Functions can update messages (to mark as processed)
+      allow update: if false;
+      // No deletion allowed
+      allow delete: if false;
+    }
   }
 }

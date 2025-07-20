@@ -9,14 +9,305 @@
   <body class="flex flex-col min-h-screen">
     <div id="header-container"></div>
     <main class="flex-grow">
-      <section class="py-20">
+      <!-- Hero Section -->
+      <section class="bg-gradient-to-br from-primary/5 to-accent/5 py-16 md:py-24">
         <div class="container mx-auto px-4 text-center">
-          <h2 class="text-4xl font-bold mb-8">Kontakt</h2>
-          <p class="max-w-3xl mx-auto">To jest podstrona "Kontakt".</p>
+          <h1 class="font-display text-4xl md:text-5xl font-bold text-primary mb-6" data-aos="fade-up">
+            Skontaktuj się ze mną
+          </h1>
+          <p class="font-sans text-lg text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+            Jestem tutaj, aby Ci pomóc. Skontaktuj się ze mną w dogodny dla Ciebie sposób.
+          </p>
+        </div>
+      </section>
+
+      <!-- Contact Information -->
+      <section class="py-16 md:py-20">
+        <div class="container mx-auto px-4">
+          <div class="grid lg:grid-cols-2 gap-12 lg:gap-16">
+            
+            <!-- Contact Details -->
+            <div class="space-y-8" data-aos="fade-right">
+              <div>
+                <h2 class="font-display text-3xl font-bold text-primary mb-6">
+                  Informacje kontaktowe
+                </h2>
+                <p class="text-secondary mb-8">
+                  Zapraszam do kontaktu w sprawie umówienia wizyty lub zadania pytań dotyczących terapii.
+                </p>
+              </div>
+
+              <div class="space-y-6">
+                <!-- Email -->
+                <div class="flex items-start space-x-4">
+                  <div class="flex-shrink-0 w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-primary mb-1">Email</h3>
+                    <a href="mailto:j.rudzinska@myreflection.pl" class="text-secondary hover:text-accent transition-colors">
+                      j.rudzinska@myreflection.pl
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Phone -->
+                <div class="flex items-start space-x-4">
+                  <div class="flex-shrink-0 w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-primary mb-1">Telefon</h3>
+                    <a href="tel:+48123456789" class="text-secondary hover:text-accent transition-colors">
+                      +48 123 456 789
+                    </a>
+                    <p class="text-sm text-gray-500 mt-1">Pon-Pt: 9:00-18:00</p>
+                  </div>
+                </div>
+
+                <!-- Location -->
+                <div class="flex items-start space-x-4">
+                  <div class="flex-shrink-0 w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-primary mb-1">Gabinet</h3>
+                    <p class="text-secondary">
+                      ul. Przykładowa 123<br>
+                      00-000 Warszawa
+                    </p>
+                    <p class="text-sm text-gray-500 mt-1">Wizyty po umówieniu</p>
+                  </div>
+                </div>
+
+                <!-- Online Sessions -->
+                <div class="flex items-start space-x-4">
+                  <div class="flex-shrink-0 w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-6 h-6 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-primary mb-1">Sesje online</h3>
+                    <p class="text-secondary">
+                      Możliwość prowadzenia terapii online<br>
+                      przez platformy video
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick Actions -->
+              <div class="pt-6 border-t border-gray-200">
+                <div class="flex flex-col sm:flex-row gap-4">
+                  <a href="/umow-wizyte" class="inline-flex items-center justify-center px-6 py-3 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors font-medium">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Umów wizytę
+                  </a>
+                  <a href="mailto:j.rudzinska@myreflection.pl" class="inline-flex items-center justify-center px-6 py-3 border border-accent text-accent rounded-lg hover:bg-accent/5 transition-colors font-medium">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    Wyślij email
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Form -->
+            <div class="bg-surface p-8 rounded-2xl shadow-lg" data-aos="fade-left">
+              <h3 class="font-display text-2xl font-bold text-primary mb-6">
+                Wyślij wiadomość
+              </h3>
+              <form id="contact-form" class="space-y-6">
+                <div class="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label for="name" class="block text-sm font-medium text-primary mb-2">
+                      Imię i nazwisko *
+                    </label>
+                    <input 
+                      type="text" 
+                      id="name" 
+                      name="name" 
+                      required
+                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                      placeholder="Twoje imię i nazwisko"
+                    >
+                  </div>
+                  <div>
+                    <label for="email" class="block text-sm font-medium text-primary mb-2">
+                      Email *
+                    </label>
+                    <input 
+                      type="email" 
+                      id="email" 
+                      name="email" 
+                      required
+                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                      placeholder="twoj@email.pl"
+                    >
+                  </div>
+                </div>
+                
+                <div>
+                  <label for="phone" class="block text-sm font-medium text-primary mb-2">
+                    Telefon
+                  </label>
+                  <input 
+                    type="tel" 
+                    id="phone" 
+                    name="phone"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                    placeholder="+48 123 456 789"
+                  >
+                </div>
+
+                <div>
+                  <label for="subject" class="block text-sm font-medium text-primary mb-2">
+                    Temat *
+                  </label>
+                  <select 
+                    id="subject" 
+                    name="subject" 
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors"
+                  >
+                    <option value="">Wybierz temat</option>
+                    <option value="appointment">Umówienie wizyty</option>
+                    <option value="question">Pytanie o terapię</option>
+                    <option value="info">Informacje o usługach</option>
+                    <option value="other">Inne</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="message" class="block text-sm font-medium text-primary mb-2">
+                    Wiadomość *
+                  </label>
+                  <textarea 
+                    id="message" 
+                    name="message" 
+                    rows="5" 
+                    required
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent transition-colors resize-vertical"
+                    placeholder="Opisz swoją sytuację lub zadaj pytanie..."
+                  ></textarea>
+                </div>
+
+                <div class="flex items-start space-x-3">
+                  <input 
+                    type="checkbox" 
+                    id="privacy" 
+                    name="privacy" 
+                    required
+                    class="mt-1 w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
+                  >
+                  <label for="privacy" class="text-sm text-secondary">
+                    Wyrażam zgodę na przetwarzanie moich danych osobowych zgodnie z 
+                    <a href="/polityka-prywatnosci" class="text-accent hover:underline">polityką prywatności</a> *
+                  </label>
+                </div>
+
+                <button 
+                  type="submit" 
+                  class="w-full bg-accent text-white py-3 px-6 rounded-lg hover:bg-accent/90 transition-colors font-medium flex items-center justify-center"
+                >
+                  <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                  </svg>
+                  Wyślij wiadomość
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Map Section -->
+      <section class="py-16 bg-gray-50">
+        <div class="container mx-auto px-4">
+          <div class="text-center mb-12">
+            <h2 class="font-display text-3xl font-bold text-primary mb-4" data-aos="fade-up">
+              Lokalizacja gabinetu
+            </h2>
+            <p class="text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+              Gabinet znajduje się w centrum Warszawy, z łatwym dostępem komunikacją publiczną.
+            </p>
+          </div>
+          
+          <div class="bg-white rounded-2xl shadow-lg overflow-hidden" data-aos="fade-up" data-aos-delay="200">
+            <div class="aspect-w-16 aspect-h-9 lg:aspect-h-6">
+              <!-- Placeholder for map - replace with actual map integration -->
+              <div class="w-full h-96 bg-gray-200 flex items-center justify-center">
+                <div class="text-center">
+                  <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  <p class="text-gray-500">Mapa gabinetu</p>
+                  <p class="text-sm text-gray-400 mt-2">ul. Przykładowa 123, 00-000 Warszawa</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ Section -->
+      <section class="py-16">
+        <div class="container mx-auto px-4">
+          <div class="text-center mb-12">
+            <h2 class="font-display text-3xl font-bold text-primary mb-4" data-aos="fade-up">
+              Często zadawane pytania
+            </h2>
+            <p class="text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+              Odpowiedzi na najczęściej zadawane pytania dotyczące kontaktu i wizyt.
+            </p>
+          </div>
+
+          <div class="max-w-3xl mx-auto space-y-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="bg-surface rounded-lg p-6 shadow-sm">
+              <h3 class="font-semibold text-primary mb-2">Jak szybko mogę umówić wizytę?</h3>
+              <p class="text-secondary">
+                Zazwyczaj mogę zaproponować termin w ciągu 3-7 dni. W pilnych przypadkach postaram się znaleźć wcześniejszy termin.
+              </p>
+            </div>
+
+            <div class="bg-surface rounded-lg p-6 shadow-sm">
+              <h3 class="font-semibold text-primary mb-2">Czy prowadzisz sesje online?</h3>
+              <p class="text-secondary">
+                Tak, oferuję sesje online przez bezpieczne platformy video. To dobra opcja dla osób, które nie mogą dotrzeć do gabinetu.
+              </p>
+            </div>
+
+            <div class="bg-surface rounded-lg p-6 shadow-sm">
+              <h3 class="font-semibold text-primary mb-2">Jak mogę anulować lub przełożyć wizytę?</h3>
+              <p class="text-secondary">
+                Proszę o kontakt minimum 24 godziny przed wizytą. Możesz to zrobić przez email lub telefon, lub użyć linku zarządzania rezerwacją.
+              </p>
+            </div>
+
+            <div class="bg-surface rounded-lg p-6 shadow-sm">
+              <h3 class="font-semibold text-primary mb-2">Czy pierwsza konsultacja jest bezpłatna?</h3>
+              <p class="text-secondary">
+                Pierwsza sesja jest dostępna z 50% zniżką, co pozwala na poznanie się i omówienie Twoich potrzeb w przystępnej cenie.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </main>
     <div id="footer-container"></div>
     <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/contact-form.js"></script>
   </body>
 </html>

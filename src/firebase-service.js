@@ -497,8 +497,34 @@ class FirebaseService {
       };
     } catch (error) {
       console.error('Error updating appointment:', error);
-      throw new Error('Failed to update appointment');
+      this.handleFirebaseError(error, 'Failed to update appointment');
     }
+  }
+
+  handleFirebaseError(error, defaultMessage = 'Operation failed') {
+    // Sprawdzamy czy błąd jest spowodowany przez adblocker
+    if (error.message && error.message.includes('ERR_BLOCKED_BY_CLIENT')) {
+      throw new Error('Połączenie zostało zablokowane przez adblocker. Spróbuj wyłączyć adblocker lub dodać stronę do wyjątków.');
+    }
+    
+    // Sprawdzamy inne typowe błędy Firebase
+    if (error.code) {
+      switch (error.code) {
+        case 'permission-denied':
+          throw new Error('Brak uprawnień do wykonania tej operacji.');
+        case 'unavailable':
+          throw new Error('Usługa Firebase jest tymczasowo niedostępna. Spróbuj ponownie za chwilę.');
+        case 'deadline-exceeded':
+          throw new Error('Operacja przekroczyła limit czasu. Spróbuj ponownie.');
+        case 'resource-exhausted':
+          throw new Error('Przekroczono limit zasobów. Spróbuj ponownie później.');
+        default:
+          console.error('Firebase error code:', error.code, error.message);
+          throw new Error(defaultMessage);
+      }
+    }
+    
+    throw new Error(error.message || defaultMessage);
   }
 
   async validateAppointmentData(data) {

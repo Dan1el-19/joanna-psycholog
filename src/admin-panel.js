@@ -1,40 +1,40 @@
 // Admin panel for managing appointments
 import firebaseService from './firebase-service.js';
-import { authSystem } from './auth.js';
+import { adminAuth } from './admin-auth.js'; // Zmienione z auth.js na admin-auth.js
 import pricingService from './pricing-service.js';
+// NOWE: Importujemy serwis UI do obsługi potwierdzeń
+import { showConfirmation } from './ui-service.js';
 
 class AdminPanel {
   constructor() {
     this.appointments = [];
     this.currentFilter = 'all';
-    this.isAuthenticated = false;
-    this.init();
+    this.app = null; // Referencja do App Core, zostanie wstrzyknięta
   }
 
-  init() {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => this.setup());
-    } else {
-      this.setup();
-    }
-  }
-
-  setup() {
-    const authStatus = authSystem.getAuthStatus();
-    if (!authStatus.isAuthenticated || !authStatus.sessionValid) {
-      this.showAuthRequired();
-      return;
-    }
-    this.isAuthenticated = true;
-    if (window.adminNav) return; // Handled by the main navigation router
-
-    // Fallback for standalone usage
-    this.createAdminInterface();
-    this.loadAppointments();
-  }
-  
-  // This method is now called by admin-navigation to set up the view
+  // Ta metoda jest teraz głównym punktem wejścia dla tego modułu
   async renderView(container) {
+      // Renderujemy podstawowy szkielet HTML dla tego widoku
+      container.innerHTML = `
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">Zarządzanie wizytami</h2>
+                <p class="text-sm text-gray-500">Przeglądaj i zarządzaj rezerwacjami klientów</p>
+            </div>
+            <div id="appointments-container" class="p-6">
+                <div class="flex flex-wrap gap-2 mb-6">
+                    <button data-action="filter-appointments" data-filter="all" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium ring-2 ring-offset-2 ring-white">Wszystkie</button>
+                    <button data-action="filter-appointments" data-filter="pending" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium opacity-70">Oczekujące</button>
+                    <button data-action="filter-appointments" data-filter="confirmed" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium opacity-70">Potwierdzone</button>
+                    <button data-action="filter-appointments" data-filter="completed" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium opacity-70">Zakończone</button>
+                    <button data-action="filter-appointments" data-filter="cancelled" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium opacity-70">Anulowane</button>
+                    <button data-action="filter-appointments" data-filter="archived" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium opacity-70">Archiwum</button>
+                    <button data-action="load-appointments" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">🔄 Odśwież</button>
+                </div>
+                <div id="appointments-list" class="space-y-4"></div>
+            </div>
+        </div>
+      `;
       this.setupEventListeners(container);
       await this.loadAppointments();
   }
@@ -43,16 +43,11 @@ class AdminPanel {
     if (!container || container.dataset.listenersAttached) return;
     container.dataset.listenersAttached = 'true';
 
-    // Use document.body for global event delegation to catch modal clicks
-    document.body.addEventListener('click', async (event) => {
+    // Centralny listener dla tego modułu
+    container.addEventListener('click', async (event) => {
         const actionElement = event.target.closest('[data-action]');
         if (!actionElement) return;
         
-        // Only handle actions related to appointments or admin-panel dialogs
-        const isAppointmentAction = actionElement.closest('#appointments-container') || 
-                                   actionElement.closest('.dialog-container');
-        if (!isAppointmentAction) return;
-
         event.preventDefault();
         const action = actionElement.dataset.action;
         const id = actionElement.dataset.id;
@@ -70,49 +65,50 @@ class AdminPanel {
             case 'show-reschedule-dialog': this.showRescheduleDialog(id, date, time); break;
             case 'archive': await this.archiveAppointment(id); break;
             case 'unarchive': await this.unarchiveAppointment(id); break;
-            case 'close-dialog': actionElement.closest('.dialog-container')?.remove(); break;
         }
     });
 
-    document.body.addEventListener('submit', async (event) => {
-        const form = event.target;
+    // Globalny listener dla dialogów (dodawanych do document.body)
+    if (!document.body.dataset.adminDialogListenerAttached) {
+        document.body.dataset.adminDialogListenerAttached = 'true';
         
-        // Only handle admin-panel forms
-        if (!['payment-form', 'reschedule-form'].includes(form.id)) return;
-        
-        event.preventDefault();
-        const id = form.dataset.id;
+        // Listener dla przycisków zamykania dialogów
+        document.body.addEventListener('click', (event) => {
+            const actionElement = event.target.closest('[data-action="close-dialog"]');
+            if (actionElement) {
+                event.preventDefault();
+                actionElement.closest('.dialog-container')?.remove();
+            }
+        });
 
-        switch (form.id) {
-            case 'payment-form':
-                await this.handlePaymentUpdate(id, new FormData(form));
-                form.closest('.dialog-container')?.remove();
-                break;
-            case 'reschedule-form':
-                await this.handleRescheduleUpdate(id, new FormData(form));
-                form.closest('.dialog-container')?.remove();
-                break;
-        }
-    });
-  }
+        // Listener dla formularzy w dialogach
+        const self = this; // Zachowujemy referencję do this
+        document.body.addEventListener('submit', async (event) => {
+            const form = event.target;
+            if (!['payment-form', 'reschedule-form'].includes(form.id)) return;
+            
+            event.preventDefault();
+            const id = form.dataset.id;
 
-  showAuthRequired() {
-    const container = document.getElementById('admin-panel') || this.createAdminContainer();
-    container.innerHTML = `<div class="bg-white p-8 rounded-lg shadow-lg text-center"><div class="mb-6"><div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-5V9m0 0V7m0 2H10m2 0h2"></path></svg></div><h2 class="text-2xl font-bold text-gray-800 mb-2">Dostęp Ograniczony</h2><p class="text-gray-600">Ta strona wymaga autoryzacji administratora.</p></div><button data-action="show-login" class="bg-primary text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">Zaloguj się jako Administrator</button></div>`;
-  }
-
-  createAdminContainer() {
-    const container = document.createElement('div');
-    container.id = 'admin-panel';
-    container.className = 'container mx-auto px-4 py-8';
-    document.body.appendChild(container);
-    return container;
+            switch (form.id) {
+                case 'payment-form':
+                    await self.handlePaymentUpdate(id, new FormData(form));
+                    form.closest('.dialog-container')?.remove();
+                    break;
+                case 'reschedule-form':
+                    await self.handleRescheduleUpdate(id, new FormData(form));
+                    form.closest('.dialog-container')?.remove();
+                    break;
+            }
+        });
+    }
   }
 
   async loadAppointments() {
     if (!this.verifyAdminAccess()) return;
     const listContainer = document.getElementById('appointments-list');
     if (!listContainer) return;
+
     listContainer.innerHTML = `<div class="text-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div><p class="mt-2 text-gray-600">Ładowanie wizyt...</p></div>`;
     try {
       const response = await firebaseService.getAppointments({ status: this.currentFilter, limit: 100 });
@@ -124,7 +120,7 @@ class AdminPanel {
       }
     } catch (error) {
       console.error('Error loading appointments:', error);
-      this.showError('Błąd podczas ładowania wizyt: ' + error.message);
+      this.app.events.emit('showToast', { message: 'Błąd podczas ładowania wizyt: ' + error.message, type: 'error' });
     }
   }
 
@@ -154,6 +150,7 @@ class AdminPanel {
   }
 
   async renderAppointmentCard(appointment) {
+    // ... (cała logika renderowania karty bez zmian) ...
     const statusClasses = { pending: 'bg-yellow-100 text-yellow-800 border-yellow-200', confirmed: 'bg-green-100 text-green-800 border-green-200', cancelled: 'bg-red-100 text-red-800 border-red-200', completed: 'bg-blue-100 text-blue-800 border-blue-200' };
     const paymentStatusClasses = { pending: 'bg-yellow-100 text-yellow-800', paid: 'bg-green-100 text-green-800', failed: 'bg-red-100 text-red-800' };
     const statusLabels = { pending: 'Oczekująca', confirmed: 'Potwierdzona', cancelled: 'Anulowana', completed: 'Zakończona' };
@@ -202,21 +199,24 @@ class AdminPanel {
     try {
       await firebaseService.updateAppointment(appointmentId, { status: newStatus });
       this.loadAppointments();
-      this.showSuccess(`Status wizyty został zmieniony.`);
-    } catch (error) { this.showError('Błąd podczas aktualizacji wizyty: ' + error.message); }
+      this.app.events.emit('showToast', { message: 'Status wizyty został zmieniony.', type: 'success' });
+    } catch (error) { 
+      this.app.events.emit('showToast', { message: 'Błąd podczas aktualizacji wizyty: ' + error.message, type: 'error' });
+    }
   }
 
   verifyAdminAccess() {
-    const authStatus = authSystem.getAuthStatus();
+    const authStatus = adminAuth.getAuthStatus();
     if (!authStatus.isAuthenticated || !authStatus.sessionValid) {
-      this.showError('Sesja wygasła. Zaloguj się ponownie.');
-      this.showAuthRequired();
+      this.app.events.emit('showToast', { message: 'Sesja wygasła. Zaloguj się ponownie.', type: 'error' });
+      // Nawigacja sama pokaże ekran logowania
       return false;
     }
     return true;
   }
 
   showNotesDialog(appointmentId, currentNotes) {
+    // prompt() jest brzydki, ale na razie go zostawiamy, żeby nie budować całego modala
     const notes = prompt('Wprowadź notatki dla tej wizyty:', decodeURIComponent(currentNotes));
     if (notes !== null) this.updateAppointmentNotes(appointmentId, notes);
   }
@@ -225,19 +225,30 @@ class AdminPanel {
     try {
       await firebaseService.updateAppointment(appointmentId, { notes });
       this.loadAppointments();
-      this.showSuccess('Notatki zostały zaktualizowane');
-    } catch (error) { this.showError('Błąd podczas aktualizacji notatek: ' + error.message); }
+      this.app.events.emit('showToast', { message: 'Notatki zostały zaktualizowane', type: 'success' });
+    } catch (error) { 
+      this.app.events.emit('showToast', { message: 'Błąd podczas aktualizacji notatek: ' + error.message, type: 'error' });
+    }
   }
 
   async markSessionCompleted(appointmentId) {
-    if (!this.verifyAdminAccess() || !confirm('Czy na pewno chcesz oznaczyć tę sesję jako odbytą?')) return;
+    if (!this.verifyAdminAccess()) return;
+    const confirmed = await showConfirmation(
+        'Potwierdzenie',
+        'Czy na pewno chcesz oznaczyć tę sesję jako odbytą?'
+    );
+    if (!confirmed) return;
+    
     try {
       await firebaseService.updateAppointment(appointmentId, { sessionCompleted: true, sessionCompletedDate: Date.now() });
       this.loadAppointments();
-      this.showSuccess('Sesja została oznaczona jako odbyta');
-    } catch (error) { this.showError('Błąd podczas oznaczania sesji: ' + error.message); }
+      this.app.events.emit('showToast', { message: 'Sesja została oznaczona jako odbyta', type: 'success' });
+    } catch (error) { 
+      this.app.events.emit('showToast', { message: 'Błąd podczas oznaczania sesji: ' + error.message, type: 'error' });
+    }
   }
 
+  // ... (showPaymentDialog, handlePaymentUpdate, showRescheduleDialog, handleRescheduleUpdate - bez zmian) ...
   showPaymentDialog(appointmentId, currentPaymentStatus, currentPaymentMethod) {
     const dialog = document.createElement('div');
     dialog.className = 'dialog-container fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -256,12 +267,18 @@ class AdminPanel {
   async handlePaymentUpdate(appointmentId, formData) {
       const method = formData.get('paymentMethod');
       const status = formData.get('paymentStatus');
+      
+      console.log('handlePaymentUpdate called with:', { appointmentId, method, status });
+      
       try {
-        await firebaseService.updatePaymentStatus(appointmentId, method, status);
-        this.loadAppointments();
-        this.showMessage('Status płatności zaktualizowany', 'success');
+        const result = await firebaseService.updatePaymentStatus(appointmentId, method, status);
+        console.log('updatePaymentStatus result:', result);
+        
+        await this.loadAppointments();
+        this.app.events.emit('showToast', { message: 'Status płatności zaktualizowany', type: 'success' });
       } catch (error) {
-        this.showMessage('Błąd podczas aktualizacji płatności: ' + error.message, 'error');
+        console.error('Error in handlePaymentUpdate:', error);
+        this.app.events.emit('showToast', { message: 'Błąd podczas aktualizacji płatności: ' + error.message, type: 'error' });
       }
   }
 
@@ -287,52 +304,67 @@ class AdminPanel {
       try {
         await firebaseService.rescheduleAppointment(appointmentId, newDate, newTime);
         this.loadAppointments();
-        this.showMessage('Wizyta została przełożona', 'success');
+        this.app.events.emit('showToast', { message: 'Wizyta została przełożona', type: 'success' });
       } catch (error) {
-        this.showMessage('Błąd podczas przełożenia wizyty: ' + error.message, 'error');
+        this.app.events.emit('showToast', { message: 'Błąd podczas przełożenia wizyty: ' + error.message, type: 'error' });
       }
   }
 
   async archiveAppointment(appointmentId) {
-    if (!this.verifyAdminAccess() || !confirm('Czy na pewno chcesz zarchiwizować tę wizytę?')) return;
+    if (!this.verifyAdminAccess()) return;
+    const confirmed = await showConfirmation(
+        'Archiwizacja wizyty',
+        'Czy na pewno chcesz zarchiwizować tę wizytę?'
+    );
+    if (!confirmed) return;
+
     try {
       await firebaseService.archiveAppointment(appointmentId);
       this.loadAppointments();
-      this.showMessage('Wizyta została zarchiwizowana', 'success');
-    } catch (error) { this.showMessage('Błąd podczas archiwizacji wizyty: ' + error.message, 'error'); }
+      this.app.events.emit('showToast', { message: 'Wizyta została zarchiwizowana', type: 'success' });
+    } catch (error) { 
+        this.app.events.emit('showToast', { message: 'Błąd podczas archiwizacji wizyty: ' + error.message, type: 'error' });
+    }
   }
 
   async unarchiveAppointment(appointmentId) {
-    if (!this.verifyAdminAccess() || !confirm('Czy na pewno chcesz przywrócić tę wizytę z archiwum?')) return;
+    if (!this.verifyAdminAccess()) return;
+    const confirmed = await showConfirmation(
+        'Przywracanie wizyty',
+        'Czy na pewno chcesz przywrócić tę wizytę z archiwum?'
+    );
+    if (!confirmed) return;
+
     try {
       await firebaseService.unarchiveAppointment(appointmentId);
       this.loadAppointments();
-      this.showMessage('Wizyta została przywrócona z archiwum', 'success');
-    } catch (error) { this.showMessage('Błąd podczas przywracania wizyty: ' + error.message, 'error'); }
+      this.app.events.emit('showToast', { message: 'Wizyta została przywrócona z archiwum', type: 'success' });
+    } catch (error) { 
+        this.app.events.emit('showToast', { message: 'Błąd podczas przywracania wizyty: ' + error.message, type: 'error' });
+    }
   }
 
   async performMaintenanceCleanup() {
-    if (!this.verifyAdminAccess() || !confirm('Czy na pewno chcesz uruchomić proces czyszczenia bazy danych?\n\nTa operacja usunie wszystkie wizyty starsze niż 12 miesięcy.')) return;
+    if (!this.verifyAdminAccess()) return;
+    const confirmed = await showConfirmation(
+        'Czyszczenie bazy danych',
+        'Czy na pewno chcesz uruchomić ten proces? Ta operacja usunie wszystkie wizyty starsze niż 12 miesięcy i jest nieodwracalna.',
+        'Tak, usuń'
+    );
+    if (!confirmed) return;
+
     try {
       const result = await firebaseService.performDailyMaintenance();
-      this.showMessage(`Czyszczenie zakończone. Usunięto ${result.cleanupResults?.appointments?.deletedCount || 0} starych wizyt.`, 'success');
+      const message = `Czyszczenie zakończone. Usunięto ${result.cleanupResults?.appointments?.deletedCount || 0} starych wizyt.`;
+      this.app.events.emit('showToast', { message, type: 'success' });
       if (document.getElementById('appointments-list')) this.loadAppointments();
-    } catch (error) { this.showMessage('Błąd podczas czyszczenia bazy danych: ' + error.message, 'error'); }
+    } catch (error) { 
+        this.app.events.emit('showToast', { message: 'Błąd podczas czyszczenia bazy danych: ' + error.message, type: 'error' });
+    }
   }
 
-  showSuccess = (message) => this.showMessage(message, 'success');
-  showError = (message) => this.showMessage(message, 'error');
-
-  showMessage(message, type) {
-    const messageDiv = document.createElement('div');
-    const typeClasses = { success: 'bg-green-100 text-green-800 border border-green-200', error: 'bg-red-100 text-red-800 border border-red-200' };
-    messageDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${typeClasses[type] || 'bg-blue-100 text-blue-800 border-blue-200'}`;
-    messageDiv.textContent = message;
-    document.body.appendChild(messageDiv);
-    setTimeout(() => messageDiv.remove(), 5000);
-  }
+  // USUNIĘTE METODY: showSuccess, showError, showMessage
 }
 
-// Create global instance
-window.adminPanel = new AdminPanel();
-export default window.adminPanel;
+// Eksportujemy jedną instancję, żeby była singletonem w całej aplikacji
+export default new AdminPanel();

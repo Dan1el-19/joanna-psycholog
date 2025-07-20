@@ -97,13 +97,22 @@ class ReservationManagement {
     }
   }
 
-  renderPriceDisplay(servicePrice) {
-    if (servicePrice) {
-      return `<div class="flex flex-col"><div class="flex justify-between"><span class="text-gray-600">Cena:</span><span class="font-medium">${servicePrice} PLN <span class="text-sm text-gray-500">(aktualna cena)</span></span></div>${this.appointment.calculatedPrice && this.appointment.calculatedPrice !== servicePrice ? `<div class="flex justify-between text-sm text-gray-500 mt-1"><span>Cena przy rezerwacji:</span><span>${this.appointment.calculatedPrice} PLN${this.appointment.isFirstSession ? ' (50% zniżki)' : ''}</span></div>` : ''}</div>`;
-    } else if (this.appointment.calculatedPrice) {
-      return `<div class="flex flex-col"><div class="flex justify-between"><span class="text-gray-600">Cena:</span><span class="font-medium">${this.appointment.calculatedPrice} PLN${this.appointment.isFirstSession ? ' <span class="text-green-600 text-sm">(50% zniżki)</span>' : ''}</span></div>${this.appointment.originalServicePrice ? `<div class="flex justify-between text-sm text-gray-500 mt-1"><span>Cena podstawowa:</span><span>${this.appointment.originalServicePrice} PLN</span></div>` : ''}</div>`;
+  renderSimplePrice(augmentedData) {
+    // Używamy obliczonej ceny z systemu (finalPrice) jako głównej ceny do wyświetlenia
+    const price = augmentedData.finalPrice || this.appointment.calculatedPrice || augmentedData.basePrice;
+    
+    if (!price) {
+      return 'Cena do ustalenia';
     }
-    return '';
+    
+    let priceText = `${price} PLN`;
+    
+    // Dodajemy informację o zniżce dla pierwszej sesji
+    if (this.appointment.isFirstSession) {
+      priceText += ' <span class="text-green-600 text-sm">(50% zniżki)</span>';
+    }
+    
+    return priceText;
   }
 
   async renderReservationDetails() {
@@ -128,7 +137,7 @@ class ReservationManagement {
                 <div class="flex justify-between"><span class="text-gray-600">Data:</span><span class="font-medium">${this.appointment.confirmedDate || this.appointment.preferredDate}</span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Godzina:</span><span class="font-medium">${this.appointment.confirmedTime || this.appointment.preferredTime}</span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Czas trwania:</span><span class="font-medium">${augmentedData.serviceDuration} minut</span></div>
-                ${this.renderPriceDisplay(augmentedData.basePrice)}
+                <div class="flex justify-between"><span class="text-gray-600">Cena:</span><span class="font-medium">${this.renderSimplePrice(augmentedData)}</span></div>
               </div>
             </div>
             <div>

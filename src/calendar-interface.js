@@ -1,5 +1,5 @@
 // Client calendar interface for appointment booking
-// VERSION 2.0 - Responsive Fix & Logic Cleanup
+// VERSION 2.2 - Past Time Filtering & Responsive Fix
 import firebaseService from './firebase-service.js';
 import { publicAuth } from './public-auth.js';
 
@@ -152,7 +152,6 @@ class CalendarInterface {
 
       grid.innerHTML = `<div class="text-center py-4"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div><p class="mt-2 text-sm text-gray-600">Ładowanie dostępnych terminów...</p></div>`;
 
-      // ✅ FIXED LOGIC: Fetch pre-calculated availability for the entire month.
       const daysInMonth = this.getDaysInMonth(this.currentYear, this.currentMonth);
       const dailySlotPromises = [];
       for (let day = 1; day <= daysInMonth; day++) {
@@ -190,9 +189,19 @@ class CalendarInterface {
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const daySlots = slotsByDate[dateStr] || [];
-      const availableSlots = daySlots.filter(slot => slot.isAvailable);
+      
+      // ✅ FIX: Filter out past slots for today
+      const now = new Date();
+      const isTodayFlag = this.isToday(dateStr);
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      const availableSlots = daySlots.filter(slot => {
+          if (!slot.isAvailable) return false;
+          if (isTodayFlag && slot.time <= currentTime) return false;
+          return true;
+      });
+
       const hasSlots = availableSlots.length > 0;
-      const isToday = this.isToday(dateStr);
       const isPast = this.isPastDate(dateStr);
 
       let cellClass = 'p-1 sm:p-2 min-h-[4rem] sm:min-h-[5rem] border-r border-b border-gray-200 flex flex-col';
@@ -208,7 +217,7 @@ class CalendarInterface {
       } else {
         cellClass += ' bg-gray-50';
       }
-      if (isToday) cellClass += ' ring-2 ring-blue-400 z-10';
+      if (isTodayFlag) cellClass += ' ring-2 ring-blue-400 z-10';
 
       calendarHtml += `<div class="${cellClass}" ${dataAttrs}>${cellContent}</div>`;
     }
@@ -219,7 +228,18 @@ class CalendarInterface {
   selectDate(dateStr) {
     this.selectedDate = dateStr;
     this.selectedTime = null;
-    const daySlots = this.availableSlots.filter(slot => slot.date === dateStr && slot.isAvailable);
+    
+    // ✅ FIX: Filter out past slots for today when showing time selection
+    const now = new Date();
+    const isTodayFlag = this.isToday(dateStr);
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const daySlots = this.availableSlots.filter(slot => {
+        if (slot.date !== dateStr || !slot.isAvailable) return false;
+        if (isTodayFlag && slot.time <= currentTime) return false;
+        return true;
+    });
+
     this.showTimeSelection(daySlots);
   }
 
