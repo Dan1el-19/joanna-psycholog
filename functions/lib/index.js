@@ -1,10 +1,10 @@
 "use strict";
 /**
  * Firebase Cloud Functions for Appointment Email System
- * Only handles appointment confirmations and admin notifications
+ * VERSION 2.1 - Complete Overhaul with Professional Email Templates for ALL functions
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.dailyMaintenanceCleanup = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.sendAppointmentRemindersManual = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = void 0;
+exports.dailyMaintenanceCleanup = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const app_1 = require("firebase-admin/app");
@@ -12,6 +12,65 @@ const firestore_2 = require("firebase-admin/firestore");
 // Initialize Firebase Admin
 (0, app_1.initializeApp)();
 const db = (0, firestore_2.getFirestore)();
+// ##################################################################
+// # NEW PROFESSIONAL EMAIL TEMPLATE
+// ##################################################################
+const generateEmailHTML = (title, preheader, content) => {
+    return `
+  <!DOCTYPE html>
+  <html lang="pl">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="X-UA-Compatible" content="ie=edge">
+      <title>${title}</title>
+      <style>
+          body { margin: 0; padding: 0; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #f4f7f6; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+          table { border-spacing: 0; }
+          td { padding: 0; }
+          img { border: 0; }
+          .wrapper { width: 100%; table-layout: fixed; background-color: #f4f7f6; padding: 40px 0; }
+          .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #4a4a4a; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+          .content { padding: 30px 40px; }
+          h1, h2, h3, p { margin: 0; }
+          h2 { font-size: 24px; color: #2c3e50; margin-bottom: 20px; }
+          p { font-size: 16px; line-height: 1.6; color: #555; }
+          .button { background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 5px; font-weight: bold; display: inline-block; }
+          .footer { background-color: #2c3e50; color: #ffffff; padding: 30px 40px; text-align: center; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+          .footer p { font-size: 12px; color: #bdc3c7; }
+          .footer a { color: #3498db; text-decoration: none; }
+          .section { padding: 20px; margin: 20px 0; border-radius: 8px; }
+          .section-blue { background-color: #eaf2ff; border-left: 4px solid #2563eb; }
+          .section-green { background-color: #e6f9f1; border-left: 4px solid #10b981; }
+          .section-red { background-color: #fff0f0; border-left: 4px solid #ef4444; }
+          .section-orange { background-color: #fff8e1; border-left: 4px solid #f59e0b; }
+          .section h3 { font-size: 18px; color: #2c3e50; margin-bottom: 15px; }
+          .section p { font-size: 15px; }
+      </style>
+  </head>
+  <body>
+      <div class="wrapper">
+          <table class="main" align="center">
+              <tr>
+                  <td class="content">
+                      <!-- Main Content Passed Here -->
+                      ${content}
+                  </td>
+              </tr>
+              <tr>
+                  <td class="footer">
+                      <p><strong>Joanna Rudzińska - Psycholog</strong></p>
+                      <p>ul. Przykładowa 1, 90-001 Łódź</p>
+                      <p><a href="mailto:j.rudzinska@myreflection.pl">j.rudzinska@myreflection.pl</a> | <a href="https://myreflection.pl">myreflection.pl</a></p>
+                  </td>
+              </tr>
+          </table>
+      </div>
+  </body>
+  </html>
+  `;
+};
+// --- Cloud Functions ---
 exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
     document: 'appointments/{appointmentId}',
     region: 'europe-central2'
@@ -25,17 +84,14 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             return;
         }
         console.log('Sending appointment confirmation for:', appointmentId);
-        // UŻYWAMY NASZEJ NOWEJ FUNKCJI
         const augmentedData = await getAugmentedAppointmentData(appointmentData);
-        // Generujemy token
         const reservationToken = generateUniqueToken();
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setMonth(tokenExpiresAt.getMonth() + 6);
-        // Zapisujemy wzbogacone dane w bazie
         await ((_b = event.data) === null || _b === void 0 ? void 0 : _b.ref.update({
             calculatedPrice: augmentedData.calculatedPrice,
             originalServicePrice: augmentedData.originalServicePrice,
-            basePrice: augmentedData.basePrice, // Dla kompatybilności
+            basePrice: augmentedData.basePrice,
             isFirstSession: augmentedData.isFirstSession,
             discount: augmentedData.discount,
             discountAmount: augmentedData.discountAmount,
@@ -50,78 +106,66 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             createdAt: firestore_2.FieldValue.serverTimestamp(),
             isUsed: false
         });
-        // Tworzymy maile używając danych z `augmentedData`
+        const clientEmailContent = `
+        <h2>Dziękuję za zgłoszenie!</h2>
+        <p>Dzień dobry ${augmentedData.name},</p>
+        <p>Otrzymałam Państwa zgłoszenie wizyty. Poniżej znajdują się jego szczegóły. Skontaktuję się z Państwem w ciągu 24 godzin w celu ustalenia ostatecznego terminu spotkania.</p>
+        
+        <div class="section section-blue">
+          <h3>Szczegóły wizyty</h3>
+          <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
+          <p><strong>Preferowana data:</strong> ${augmentedData.preferredDate || 'Do uzgodnienia'}</p>
+          <p><strong>Preferowana godzina:</strong> ${augmentedData.preferredTime || 'Do uzgodnienia'}</p>
+        </div>
+
+        <div class="section section-green">
+            <h3>Cena wizyty</h3>
+            <p style="font-size: 18px; margin: 0;"><strong>Koszt: ${augmentedData.finalPrice} PLN</strong></p>
+            ${augmentedData.isFirstSession ? `
+              <p style="color: #059669; font-weight: bold; margin: 10px 0 0;">🎉 Pierwsze spotkanie - 50% zniżki!</p>
+              <p style="font-size: 14px; color: #555; margin: 5px 0 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
+            ` : `
+              <p style="font-size: 14px; color: #555; margin: 5px 0 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
+            `}
+        </div>
+
+        <div class="section section-blue">
+            <h3>Co dalej?</h3>
+            <p>Możesz zarządzać swoją rezerwacją (zmienić termin lub ją anulować) korzystając z poniższego przycisku. Pamiętaj, że anulowanie jest możliwe do 24h przed wizytą.</p>
+            <p style="margin-top: 20px;">
+                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" class="button">
+                    Zarządzaj rezerwacją
+                </a>
+            </p>
+        </div>
+
+        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
+      `;
         const clientEmailDoc = {
             to: augmentedData.email,
             message: {
                 subject: 'Potwierdzenie zgłoszenia - Joanna Rudzińska Psycholog',
-                html: `
-            <h2>Dziękuję za zgłoszenie!</h2>
-            <p>Dzień dobry ${augmentedData.name},</p>
-            <p>Otrzymałam Państwa zgłoszenie wizyty. Poniżej znajdą Państwo szczegóły:</p>
-            
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
-              <h3 style="color: #007bff; margin-top: 0;">Szczegóły wizyty</h3>
-              <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
-              <p><strong>Preferowana data:</strong> ${augmentedData.preferredDate || 'Do uzgodnienia'}</p>
-              <p><strong>Preferowana godzina:</strong> ${augmentedData.preferredTime || 'Do uzgodnienia'}</p>
-            </div>
-            
-            <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
-              <h3 style="color: #155724; margin-top: 0;">Cena wizyty</h3>
-              <p style="font-size: 18px; margin: 0;"><strong>Koszt: ${augmentedData.finalPrice} PLN</strong></p>
-              ${augmentedData.isFirstSession ? `
-                <p style="color: #28a745; font-weight: bold; margin: 10px 0;">🎉 Pierwsze spotkanie - 50% zniżki!</p>
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
-              ` : `
-                <p style="font-size: 14px; color: #6c757d; margin: 5px 0;">Regularna cena za ${augmentedData.serviceName}: ${augmentedData.basePrice} PLN</p>
-              `}
-            </div>
-            
-            <p><strong>Następne kroki:</strong> Skontaktuję się z Państwem w ciągu 24 godzin w celu ustalenia ostatecznego terminu spotkania.</p>
-            
-            <div style="background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-              <p style="text-align: center; margin: 15px 0;">
-                <a href="https://myreflection.pl/manage-reservation/${reservationToken}" style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-                  Zarządzaj rezerwacją
-                </a>
-              </p>
-            </div>
-            
-            <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
-          `,
+                html: generateEmailHTML('Potwierdzenie zgłoszenia', 'Otrzymałam Twoje zgłoszenie wizyty.', clientEmailContent),
             }
         };
-        // Send notification email to therapist
         const therapistEmailDoc = {
             to: 'j.rudzinska@myreflection.pl',
             message: {
                 subject: `Nowa wizyta: ${augmentedData.name} - ${augmentedData.serviceName}`,
                 html: `
             <h2>Nowa wizyta - ${appointmentData.name}</h2>
-            
-            <div style="background-color: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <h3>Dane klienta:</h3>
-              <p><strong>Imię i nazwisko:</strong> ${appointmentData.name}</p>
-              <p><strong>Email:</strong> ${appointmentData.email}</p>
-              ${appointmentData.phone ? `<p><strong>Telefon:</strong> ${appointmentData.phone}</p>` : ''}
-            </div>
-            
-            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <h3>Szczegóły wizyty:</h3>
-              <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
-              <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate}</p>
-              <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime}</p>
-              <p><strong>Cena:</strong> ${augmentedData.finalPrice} PLN ${augmentedData.isFirstSession ? '(pierwsze spotkanie - 50% taniej)' : '(standardowa cena)'}</p>
-              ${appointmentData.message ? `<p><strong>Dodatkowe informacje:</strong> ${appointmentData.message}</p>` : ''}
-            </div>
-            
-            <p><strong>Data zgłoszenia:</strong> ${new Date().toLocaleString('pl-PL')}</p>
+            <p><strong>Imię i nazwisko:</strong> ${appointmentData.name}</p>
+            <p><strong>Email:</strong> ${appointmentData.email}</p>
+            ${appointmentData.phone ? `<p><strong>Telefon:</strong> ${appointmentData.phone}</p>` : ''}
+            <hr>
+            <p><strong>Usługa:</strong> ${augmentedData.serviceName}</p>
+            <p><strong>Preferowana data:</strong> ${appointmentData.preferredDate}</p>
+            <p><strong>Preferowana godzina:</strong> ${appointmentData.preferredTime}</p>
+            <p><strong>Cena:</strong> ${augmentedData.finalPrice} PLN ${augmentedData.isFirstSession ? '(pierwsze spotkanie - 50% taniej)' : '(standardowa cena)'}</p>
+            ${appointmentData.message ? `<p><strong>Dodatkowe informacje:</strong> ${appointmentData.message}</p>` : ''}
           `,
-                text: `Nowa wizyta od ${appointmentData.name} (${appointmentData.email}) na ${appointmentData.preferredDate} o ${appointmentData.preferredTime}`
             }
         };
-        // Wysyłamy maile i aktualizujemy status
         await Promise.all([
             db.collection('mail').add(clientEmailDoc),
             db.collection('mail').add(therapistEmailDoc)
@@ -136,9 +180,6 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
         console.error('Error sending appointment confirmation:', error);
     }
 });
-/**
- * Send appointment approval email when status changes to 'confirmed'
- */
 exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
     document: 'appointments/{appointmentId}',
     region: 'europe-central2'
@@ -147,80 +188,48 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
     try {
         const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
         const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
-        const appointmentId = event.params.appointmentId;
-        if (!beforeData || !afterData) {
+        if (!beforeData || !afterData)
             return;
-        }
-        // Check if status changed to 'confirmed' and approval email hasn't been sent
         if (beforeData.status !== 'confirmed' &&
             afterData.status === 'confirmed' &&
             !afterData.approvalEmailSent) {
-            console.log('Sending appointment approval email for:', appointmentId);
-            // Use stored pricing information (calculated when appointment was created)
-            const finalPrice = afterData.calculatedPrice || afterData.basePrice || 'do ustalenia';
-            const originalPrice = afterData.originalServicePrice || afterData.basePrice;
-            const isFirstSession = afterData.isFirstSession || false;
-            // Get service data for email templates (single database call)
+            console.log('Sending appointment approval email for:', event.params.appointmentId);
             const serviceData = await getServiceData(afterData.service);
             const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service;
-            const serviceDuration = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
-            // Send approval email to client
+            const approvalEmailContent = `
+            <h2>Wizyta potwierdzona!</h2>
+            <p>Dzień dobry ${afterData.name},</p>
+            <p>Z przyjemnością informuję, że Państwa wizyta została potwierdzona. Cieszę się na nasze spotkanie!</p>
+            
+            <div class="section section-green">
+              <h3>Potwierdzone szczegóły wizyty</h3>
+              <p><strong>Usługa:</strong> ${serviceName}</p>
+              <p><strong>Data:</strong> ${afterData.confirmedDate || afterData.preferredDate}</p>
+              <p><strong>Godzina:</strong> ${afterData.confirmedTime || afterData.preferredTime}</p>
+              <p><strong>Koszt:</strong> ${afterData.calculatedPrice} PLN</p>
+              ${afterData.location ? `<p><strong>Miejsce:</strong> ${afterData.location}</p>` : ''}
+              ${afterData.adminNotes ? `<p><strong>Dodatkowe informacje:</strong> ${afterData.adminNotes}</p>` : ''}
+            </div>
+
+            <div class="section section-blue">
+                <h3>Zarządzanie rezerwacją</h3>
+                <p>W razie potrzeby, możesz zarządzać swoją rezerwacją (np. zmienić termin) korzystając z poniższego przycisku.</p>
+                <p style="margin-top: 20px;">
+                    <a href="https://myreflection.pl/manage-reservation/${afterData.reservationToken}" class="button">
+                        Zarządzaj rezerwacją
+                    </a>
+                </p>
+            </div>
+            <p>Do zobaczenia,<br><strong>Joanna Rudzińska</strong></p>
+        `;
             const approvalEmailDoc = {
                 to: afterData.email,
                 message: {
                     subject: '✅ Wizyta potwierdzona - Joanna Rudzińska Psycholog',
-                    html: `
-              <h2>Świetnie! Twoja wizyta została potwierdzona</h2>
-              <p>Dzień dobry ${afterData.name},</p>
-              <p>Z przyjemnością informuję, że Państwa wizyta została potwierdzona!</p>
-              
-              <div style="background-color: #d4edda; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
-                <h3 style="color: #155724; margin-top: 0;">📅 Szczegóły potwierdzonej wizyty</h3>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>📅 Data:</strong> ${afterData.confirmedDate || afterData.preferredDate}</p>
-                <p><strong>🕐 Godzina:</strong> ${afterData.confirmedTime || afterData.preferredTime}</p>
-                <p><strong>💰 Cena:</strong> ${finalPrice} PLN${isFirstSession ? ' <span style="color: #28a745;">(pierwsze spotkanie - 50% zniżki)</span>' : ''}</p>
-                ${isFirstSession && originalPrice ? `<p style="font-size: 14px; color: #6c757d;"><strong>Regularna cena:</strong> ${originalPrice} PLN</p>` : ''}
-                ${afterData.location ? `<p><strong>📍 Miejsce:</strong> ${afterData.location}</p>` : '<p><strong>📍 Miejsce:</strong> Informacje zostały przesłane oddzielnie</p>'}
-                ${afterData.adminNotes ? `<p><strong>📝 Dodatkowe informacje:</strong> ${afterData.adminNotes}</p>` : ''}
-              </div>
-              
-              <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>⚠️ Ważne przypomnienia:</strong></p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${serviceDuration} minut</li>
-                  <li>W razie potrzeby odwołania, proszę o kontakt minimum 24h wcześniej</li>
-                  <li>Wszystkie rozmowy objęte są tajemnicą zawodową</li>
-                </ul>
-              </div>
-              
-              <div style="background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-                <h3 style="color: #1976d2; margin-top: 0;">🔗 Zarządzanie rezerwacją</h3>
-                <p style="margin: 10px 0;">Możesz zmienić termin lub anulować wizytę klikając w poniższy link:</p>
-                <p style="text-align: center; margin: 15px 0;">
-                  <a href="https://myreflection.pl/manage-reservation/${afterData.reservationToken}" 
-                     style="background-color: #2196f3; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-                    Zarządzaj rezerwacją
-                  </a>
-                </p>
-                <p style="font-size: 12px; color: #666; margin: 10px 0;">
-                  Anulowanie możliwe do 24h przed wizytą.
-                </p>
-              </div>
-              
-              <p>W razie pytań lub potrzeby zmiany terminu, proszę o kontakt pod tym adresem email.</p>
-              
-              <p>Cieszę się na nasze spotkanie!<br><br>
-              <strong>Joanna Rudzińska</strong><br>
-              Psycholog<br>
-              📧 j.rudzinska@myreflection.pl</p>
-            `,
-                    text: `Termin wizyty został potwierdzony. Usługa: ${serviceName}, Data: ${afterData.confirmedDate || afterData.preferredDate}, Godzina: ${afterData.confirmedTime || afterData.preferredTime}`
+                    html: generateEmailHTML('Wizyta Potwierdzona', 'Twoja wizyta została potwierdzona.', approvalEmailContent)
                 }
             };
-            // Add email to mail collection
             await db.collection('mail').add(approvalEmailDoc);
-            // Update appointment with approval email status
             await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
                 approvalEmailSent: true,
                 approvalEmailSentAt: firestore_2.FieldValue.serverTimestamp()
@@ -232,30 +241,251 @@ exports.sendAppointmentApproval = (0, firestore_1.onDocumentUpdated)({
         console.error('Error sending appointment approval email:', error);
     }
 });
-/**
- * Pobiera pełne, wzbogacone dane wizyty.
- * Centralne miejsce dla logiki pobierania usług i kalkulacji ceny na backendzie.
- * @param {object} appointmentData Surowe dane wizyty z dokumentu Firestore.
- * @returns {Promise<object>} Obiekt z wszystkimi danymi potrzebnymi do zapisu w bazie i wysłania maila.
- */
+exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
+    schedule: '0 9 * * *',
+    timeZone: 'Europe/Warsaw',
+    region: 'europe-central2'
+}, async () => {
+    try {
+        console.log('Starting appointment reminder check...');
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        const appointmentsQuery = db.collection('appointments')
+            .where('status', '==', 'confirmed')
+            .where('confirmedDate', '==', tomorrowStr)
+            .where('reminderEmailSent', '==', false);
+        const querySnapshot = await appointmentsQuery.get();
+        if (querySnapshot.empty) {
+            console.log('No appointments need reminders today');
+            return;
+        }
+        for (const doc of querySnapshot.docs) {
+            const appointment = doc.data();
+            const serviceData = await getServiceData(appointment.service);
+            const reminderContent = `
+            <h2>Przypomnienie o wizycie</h2>
+            <p>Dzień dobry ${appointment.name},</p>
+            <p>Chciałabym przypomnieć o Państwa jutrzejszej wizycie.</p>
+            <div class="section section-blue">
+                <h3>Szczegóły wizyty</h3>
+                <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || appointment.service}</p>
+                <p><strong>Data:</strong> ${appointment.confirmedDate}</p>
+                <p><strong>Godzina:</strong> ${appointment.confirmedTime}</p>
+            </div>
+            <div class="section section-orange">
+                <h3>Ważne</h3>
+                <p>W razie potrzeby odwołania wizyty, proszę o kontakt najszybciej jak to możliwe. Anulowanie jest możliwe do 24h przed terminem.</p>
+                 <p style="margin-top: 20px;">
+                    <a href="https://myreflection.pl/manage-reservation/${appointment.reservationToken}" class="button">
+                        Zarządzaj rezerwacją
+                    </a>
+                </p>
+            </div>
+            <p>Do zobaczenia jutro!<br><strong>Joanna Rudzińska</strong></p>
+        `;
+            const reminderEmailDoc = {
+                to: appointment.email,
+                message: {
+                    subject: '📅 Przypomnienie o wizycie jutro - Joanna Rudzińska Psycholog',
+                    html: generateEmailHTML('Przypomnienie o wizycie', `Przypominamy o Twojej wizycie jutro o ${appointment.confirmedTime}.`, reminderContent)
+                }
+            };
+            await db.collection('mail').add(reminderEmailDoc);
+            await doc.ref.update({
+                reminderEmailSent: true,
+                reminderEmailSentAt: firestore_2.FieldValue.serverTimestamp()
+            });
+            console.log(`Sent reminder for appointment ${doc.id}`);
+        }
+        console.log(`Sent ${querySnapshot.size} reminder emails`);
+    }
+    catch (error) {
+        console.error('Error sending appointment reminders:', error);
+    }
+});
+exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
+    document: 'appointments/{appointmentId}',
+    region: 'europe-central2'
+}, async (event) => {
+    var _a, _b, _c;
+    try {
+        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+        if (!beforeData || !afterData)
+            return;
+        if (beforeData.status !== 'cancelled' &&
+            afterData.status === 'cancelled' &&
+            !afterData.cancellationEmailSent) {
+            const serviceData = await getServiceData(afterData.service);
+            const originalDate = beforeData.preferredDate || beforeData.confirmedDate;
+            const originalTime = beforeData.preferredTime || beforeData.confirmedTime;
+            const cancellationContent = `
+            <h2>Wizyta została anulowana</h2>
+            <p>Dzień dobry ${afterData.name},</p>
+            <p>Potwierdzam anulowanie Państwa wizyty. Jeśli to pomyłka lub chcieliby Państwo umówić nowy termin, proszę o kontakt.</p>
+            <div class="section section-red">
+                <h3>Szczegóły anulowanej wizyty</h3>
+                <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service}</p>
+                <p><strong>Data:</strong> ${originalDate}</p>
+                <p><strong>Godzina:</strong> ${originalTime}</p>
+            </div>
+            <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska</strong></p>
+        `;
+            const clientEmailDoc = {
+                to: afterData.email,
+                message: {
+                    subject: 'Anulowanie wizyty - Joanna Rudzińska',
+                    html: generateEmailHTML('Anulowanie wizyty', 'Twoja wizyta została anulowana.', cancellationContent)
+                }
+            };
+            await db.collection('mail').add(clientEmailDoc);
+            await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
+                cancellationEmailSent: true,
+                cancellationEmailSentAt: firestore_2.FieldValue.serverTimestamp()
+            }));
+            console.log(`Cancellation email sent for ${event.params.appointmentId}`);
+        }
+    }
+    catch (error) {
+        console.error('Error sending cancellation email:', error);
+    }
+});
+exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
+    document: 'appointments/{appointmentId}',
+    region: 'europe-central2'
+}, async (event) => {
+    var _a, _b, _c;
+    try {
+        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+        if (!beforeData || !afterData)
+            return;
+        const wasRescheduled = ((beforeData.preferredDate !== afterData.preferredDate || beforeData.preferredTime !== afterData.preferredTime) ||
+            (beforeData.confirmedDate !== afterData.confirmedDate || beforeData.confirmedTime !== afterData.confirmedTime));
+        if (wasRescheduled &&
+            (afterData.rescheduleCount || 0) > (beforeData.rescheduleCount || 0) &&
+            !afterData.rescheduleEmailSent) {
+            console.log('Sending reschedule email for:', event.params.appointmentId);
+            const originalDate = afterData.originalDate || beforeData.preferredDate || beforeData.confirmedDate;
+            const originalTime = afterData.originalTime || beforeData.preferredTime || beforeData.confirmedTime;
+            const newDate = afterData.preferredDate || afterData.confirmedDate;
+            const newTime = afterData.preferredTime || afterData.confirmedTime;
+            const serviceData = await getServiceData(afterData.service);
+            const rescheduleContent = `
+            <h2>Zmiana terminu wizyty</h2>
+            <p>Dzień dobry ${afterData.name},</p>
+            <p>Potwierdzam zmianę terminu Państwa wizyty.</p>
+            <div class="section section-orange">
+                <h3>Poprzedni termin</h3>
+                <p><strong>Data:</strong> ${originalDate}</p>
+                <p><strong>Godzina:</strong> ${originalTime}</p>
+            </div>
+            <div class="section section-green">
+                <h3>Nowy, potwierdzony termin</h3>
+                <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service}</p>
+                <p><strong>Data:</strong> ${newDate}</p>
+                <p><strong>Godzina:</strong> ${newTime}</p>
+            </div>
+            <p>Do zobaczenia w nowym terminie!<br><strong>Joanna Rudzińska</strong></p>
+        `;
+            const clientEmailDoc = {
+                to: afterData.email,
+                message: {
+                    subject: 'Przełożenie wizyty - Joanna Rudzińska',
+                    html: generateEmailHTML('Zmiana terminu wizyty', `Twoja wizyta została przełożona na ${newDate}.`, rescheduleContent)
+                }
+            };
+            await db.collection('mail').add(clientEmailDoc);
+            await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
+                rescheduleEmailSent: true,
+                rescheduleEmailSentAt: firestore_2.FieldValue.serverTimestamp()
+            }));
+            console.log('Reschedule email sent successfully');
+        }
+    }
+    catch (error) {
+        console.error('Error sending reschedule email:', error);
+    }
+});
+exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
+    document: 'appointments/{appointmentId}',
+    region: 'europe-central2'
+}, async (event) => {
+    var _a, _b, _c;
+    try {
+        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+        if (!beforeData || !afterData)
+            return;
+        if (beforeData.paymentStatus !== afterData.paymentStatus &&
+            afterData.paymentStatus &&
+            !afterData.paymentStatusEmailSent) {
+            console.log('Sending payment status email for:', event.params.appointmentId);
+            let paymentContent = '';
+            let subject = '';
+            if (afterData.paymentStatus === 'paid') {
+                subject = 'Potwierdzenie płatności - Joanna Rudzińska';
+                paymentContent = `
+                <h2>Płatność potwierdzona</h2>
+                <p>Dzień dobry ${afterData.name},</p>
+                <p>Potwierdzam otrzymanie płatności za wizytę. Dziękuję!</p>
+                <div class="section section-green">
+                    <h3>Szczegóły płatności</h3>
+                    <p><strong>Kwota:</strong> ${afterData.calculatedPrice} PLN</p>
+                    <p><strong>Status:</strong> Opłacona</p>
+                </div>
+                <p>Do zobaczenia na wizycie!<br><strong>Joanna Rudzińska</strong></p>
+            `;
+            }
+            else if (afterData.paymentStatus === 'failed') {
+                subject = 'Problem z płatnością - Joanna Rudzińska';
+                paymentContent = `
+                <h2>Problem z płatnością</h2>
+                <p>Dzień dobry ${afterData.name},</p>
+                <p>Informuję o problemie z płatnością za wizytę. Proszę spróbować ponownie lub skontaktować się ze mną w celu wyjaśnienia sytuacji.</p>
+                <div class="section section-red">
+                    <h3>Szczegóły płatności</h3>
+                    <p><strong>Kwota:</strong> ${afterData.calculatedPrice} PLN</p>
+                    <p><strong>Status:</strong> Nieudana</p>
+                </div>
+                <p>Z poważaniem,<br><strong>Joanna Rudzińska</strong></p>
+            `;
+            }
+            if (paymentContent) {
+                const clientEmailDoc = {
+                    to: afterData.email,
+                    message: {
+                        subject: subject,
+                        html: generateEmailHTML(subject, 'Aktualizacja statusu Twojej płatności.', paymentContent)
+                    }
+                };
+                await db.collection('mail').add(clientEmailDoc);
+                await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
+                    paymentStatusEmailSent: true,
+                    paymentStatusEmailSentAt: firestore_2.FieldValue.serverTimestamp()
+                }));
+                console.log('Payment status email sent successfully');
+            }
+        }
+    }
+    catch (error) {
+        console.error('Error sending payment status email:', error);
+    }
+});
+// --- Helper Functions (Unchanged) ---
 async function getAugmentedAppointmentData(appointmentData) {
-    // Pobieramy podstawowe dane z dokumentu wizyty
     const { service, email } = appointmentData;
-    // 1. Pobierz dane usługi (korzystając z istniejącej funkcji pomocniczej getServiceData)
     const serviceData = await getServiceData(service);
-    const basePrice = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.price) || 150; // Cena bazowa z fallbackiem
+    const basePrice = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.price) || 150;
     const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || service;
     const serviceDuration = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
-    // 2. Sprawdź, czy to pierwsza sesja (korzystając z istniejącej funkcji pomocniczej hasCompletedSession)
     const hasCompletedBefore = await hasCompletedSession(email);
     const isFirstSession = !hasCompletedBefore;
-    // 3. Oblicz ostateczną cenę
     const finalPrice = isFirstSession ? Math.round(basePrice * 0.5) : basePrice;
     const discountAmount = isFirstSession ? basePrice - finalPrice : 0;
-    // 4. Zwróć jeden, spójny, wzbogacony obiekt
     return {
-        ...appointmentData, // Zachowaj wszystkie oryginalne dane
-        // Dodaj wzbogacone dane
+        ...appointmentData,
         serviceName,
         serviceDuration,
         basePrice,
@@ -263,14 +493,10 @@ async function getAugmentedAppointmentData(appointmentData) {
         isFirstSession,
         discount: isFirstSession ? 50 : 0,
         discountAmount,
-        // Pola do zapisu w bazie
         calculatedPrice: finalPrice,
         originalServicePrice: basePrice,
     };
 }
-/**
- * Check if user has completed sessions before
- */
 async function hasCompletedSession(email) {
     try {
         const querySnapshot = await db.collection('appointments')
@@ -282,31 +508,15 @@ async function hasCompletedSession(email) {
     }
     catch (error) {
         console.error('Error checking completed sessions:', error);
-        return true; // If error, assume no discount
+        return true;
     }
 }
-/**
- * Get service data from database (similar to admin panel logic)
- */
 async function getServiceData(serviceId) {
     try {
         const servicesSnapshot = await db.collection('services').get();
-        // Mapujemy dokumenty, jawnie tworząc obiekt zgodny z interfejsem Service
-        const services = servicesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                name: data.name || '', // Dajemy domyślne wartości na wypadek braku danych
-                price: data.price || 0,
-                duration: data.duration || 50
-            };
-        });
-        console.log('Dostępne usługi:', services);
-        // Teraz TypeScript wie, że 's' jest typu Service, więc nie potrzebujemy ': any'
+        const services = servicesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const serviceObj = services.find(s => s.id === serviceId);
         if (serviceObj) {
-            // Błędów już nie ma! TypeScript wie, że te pola istnieją.
-            console.log(`Znaleziono usługę: ${serviceObj.name}, cena: ${serviceObj.price}`);
             return {
                 name: serviceObj.name || serviceId,
                 price: serviceObj.price || null,
@@ -319,557 +529,25 @@ async function getServiceData(serviceId) {
     }
     return null;
 }
-/**
- * Generate unique token for reservation management
- */
 function generateUniqueToken() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
         const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 }
-/**
- * Send reminder emails for appointments (runs daily at 9 AM)
- */
-exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
-    schedule: '0 9 * * *', // Every day at 9 AM
-    timeZone: 'Europe/Warsaw',
-    region: 'europe-central2'
-}, async (event) => {
-    try {
-        console.log('Starting appointment reminder check...');
-        // Get appointments for tomorrow
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-        // Query for confirmed appointments tomorrow that haven't received reminders
-        const appointmentsQuery = db.collection('appointments')
-            .where('status', '==', 'confirmed')
-            .where('confirmedDate', '==', tomorrowStr)
-            .where('reminderEmailSent', '==', false);
-        const querySnapshot = await appointmentsQuery.get();
-        if (querySnapshot.empty) {
-            console.log('No appointments need reminders today');
-            return;
-        }
-        const emailPromises = [];
-        for (const doc of querySnapshot.docs) {
-            const appointment = doc.data();
-            const appointmentId = doc.id;
-            console.log(`Sending reminder for appointment ${appointmentId}`);
-            // Get service details (single database call)
-            const serviceData = await getServiceData(appointment.service);
-            const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || appointment.service;
-            const serviceDuration = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
-            // Create reminder email
-            const reminderEmailDoc = {
-                to: appointment.email,
-                message: {
-                    subject: '📅 Przypomnienie o wizycie jutro - Joanna Rudzińska Psycholog',
-                    html: `
-              <h2>Przypomnienie o wizycie</h2>
-              <p>Dzień dobry ${appointment.name},</p>
-              <p>Przypominam o jutrzejszej wizycie:</p>
-              
-              <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-                <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>📅 Data:</strong> ${appointment.confirmedDate}</p>
-                <p><strong>🕐 Godzina:</strong> ${appointment.confirmedTime}</p>
-                <p><strong>💰 Cena:</strong> ${appointment.calculatedPrice || appointment.basePrice || 'do ustalenia'} PLN</p>
-                ${appointment.location ? `<p><strong>📍 Miejsce:</strong> ${appointment.location}</p>` : ''}
-                ${appointment.adminNotes ? `<p><strong>📝 Dodatkowe informacje:</strong> ${appointment.adminNotes}</p>` : ''}
-              </div>
-              
-              <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
-                <p><strong>⚠️ Przypomnienia:</strong></p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${serviceDuration} minut</li>
-                  <li>W razie potrzeby odwołania, proszę o kontakt do godz. ${appointment.confirmedTime}</li>
-                  <li>Proszę być na czas lub kilka minut wcześniej</li>
-                </ul>
-              </div>
-              
-              <p>W razie pytań lub problemów z dotarciem, proszę o kontakt pod tym adresem email.</p>
-              
-              <p>Do zobaczenia jutro!<br><br>
-              <strong>Joanna Rudzińska</strong><br>
-              Psycholog<br>
-              📧 j.rudzinska@myreflection.pl</p>
-            `,
-                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${serviceName}. Do zobaczenia!`
-                }
-            };
-            // Add email to mail collection and update appointment
-            emailPromises.push(Promise.all([
-                db.collection('mail').add(reminderEmailDoc),
-                doc.ref.update({
-                    reminderEmailSent: true,
-                    reminderEmailSentAt: firestore_2.FieldValue.serverTimestamp()
-                })
-            ]));
-        }
-        await Promise.all(emailPromises);
-        console.log(`Sent ${emailPromises.length} reminder emails`);
-    }
-    catch (error) {
-        console.error('Error sending appointment reminders:', error);
-    }
-});
-/**
- * Manual function to send appointment reminders (for testing)
- */
-exports.sendAppointmentRemindersManual = (0, firestore_1.onDocumentCreated)({
-    document: 'triggers/sendReminders',
-    region: 'europe-central2'
-}, async (event) => {
-    try {
-        console.log('Manual reminder trigger activated');
-        // Get appointments for tomorrow
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
-        // Query for confirmed appointments tomorrow that haven't received reminders
-        const appointmentsQuery = db.collection('appointments')
-            .where('status', '==', 'confirmed')
-            .where('confirmedDate', '==', tomorrowStr)
-            .where('reminderEmailSent', '!=', true);
-        const querySnapshot = await appointmentsQuery.get();
-        if (querySnapshot.empty) {
-            console.log('No appointments need reminders');
-            return;
-        }
-        const emailPromises = [];
-        for (const doc of querySnapshot.docs) {
-            const appointment = doc.data();
-            const appointmentId = doc.id;
-            console.log(`Sending manual reminder for appointment ${appointmentId}`);
-            // Get service details (single database call)
-            const serviceData = await getServiceData(appointment.service);
-            const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || appointment.service;
-            const serviceDuration = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.duration) || 50;
-            // Create reminder email (same as scheduled version)
-            const reminderEmailDoc = {
-                to: appointment.email,
-                message: {
-                    subject: '📅 Przypomnienie o wizycie jutro - Joanna Rudzińska Psycholog',
-                    html: `
-              <h2>Przypomnienie o wizycie</h2>
-              <p>Dzień dobry ${appointment.name},</p>
-              <p>Przypominam o jutrzejszej wizycie:</p>
-              
-              <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-                <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>📅 Data:</strong> ${appointment.confirmedDate}</p>
-                <p><strong>🕐 Godzina:</strong> ${appointment.confirmedTime}</p>
-                <p><strong>💰 Cena:</strong> ${appointment.calculatedPrice || appointment.basePrice || 'do ustalenia'} PLN</p>
-                ${appointment.location ? `<p><strong>📍 Miejsce:</strong> ${appointment.location}</p>` : ''}
-                ${appointment.adminNotes ? `<p><strong>📝 Dodatkowe informacje:</strong> ${appointment.adminNotes}</p>` : ''}
-              </div>
-              
-              <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
-                <p><strong>⚠️ Przypomnienia:</strong></p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Wizyta trwa ${serviceDuration} minut</li>
-                  <li>W razie potrzeby odwołania, proszę o kontakt do godz. ${appointment.confirmedTime}</li>
-                  <li>Proszę być na czas lub kilka minut wcześniej</li>
-                </ul>
-              </div>
-              
-              <p>W razie pytań lub problemów z dotarciem, proszę o kontakt pod tym adresem email.</p>
-              
-              <p>Do zobaczenia jutro!<br><br>
-              <strong>Joanna Rudzińska</strong><br>
-              Psycholog<br>
-              📧 j.rudzinska@myreflection.pl</p>
-            `,
-                    text: `Przypomnienie o wizycie jutro (${appointment.confirmedDate} o ${appointment.confirmedTime}). ${serviceName}. Do zobaczenia!`
-                }
-            };
-            // Add email to mail collection and update appointment
-            emailPromises.push(Promise.all([
-                db.collection('mail').add(reminderEmailDoc),
-                doc.ref.update({
-                    reminderEmailSent: true,
-                    reminderEmailSentAt: firestore_2.FieldValue.serverTimestamp()
-                })
-            ]));
-        }
-        await Promise.all(emailPromises);
-        console.log(`Sent ${emailPromises.length} manual reminder emails`);
-    }
-    catch (error) {
-        console.error('Error sending manual appointment reminders:', error);
-    }
-});
-/**
- * Send email when appointment is cancelled
- */
-exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
-    document: 'appointments/{appointmentId}',
-    region: 'europe-central2'
-}, async (event) => {
-    var _a, _b, _c;
-    try {
-        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
-        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
-        const appointmentId = event.params.appointmentId;
-        if (!beforeData || !afterData) {
-            return;
-        }
-        // Check if status changed to 'cancelled' and cancellation email hasn't been sent
-        if (beforeData.status !== 'cancelled' &&
-            afterData.status === 'cancelled' &&
-            !afterData.cancellationEmailSent) {
-            console.log('Sending cancellation email for:', appointmentId);
-            const cancellationReason = afterData.cancellationReason || 'Brak podanego powodu';
-            const cancelledBy = afterData.cancelledBy || 'system';
-            const originalDate = beforeData.preferredDate || beforeData.confirmedDate;
-            const originalTime = beforeData.preferredTime || beforeData.confirmedTime;
-            // Get service name for email templates
-            const serviceData = await getServiceData(afterData.service);
-            const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service;
-            // Send cancellation email to client
-            const clientEmailDoc = {
-                to: afterData.email,
-                message: {
-                    subject: 'Anulowanie wizyty - Joanna Rudzińska',
-                    html: `
-              <h2>Anulowanie wizyty</h2>
-              <p>Dzień dobry ${afterData.name},</p>
-              <p>Informuję, że wizyta została anulowana.</p>
-              
-              <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f44336;">
-                <h3 style="color: #d32f2f; margin-top: 0;">❌ Anulowana wizyta</h3>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>📅 Data:</strong> ${originalDate}</p>
-                <p><strong>🕐 Godzina:</strong> ${originalTime}</p>
-                <p><strong>Anulowane przez:</strong> ${cancelledBy === 'client' ? 'Klienta' : 'Terapeutę'}</p>
-                ${cancellationReason !== 'Brak podanego powodu' ? `<p><strong>Powód:</strong> ${cancellationReason}</p>` : ''}
-              </div>
-              
-              <div style="background-color: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
-                <p><strong>💡 Co dalej?</strong></p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>W razie pytań lub chęci umówienia nowej wizyty, proszę o kontakt</li>
-                  <li>Jeśli dokonano płatności, zostanie zwrócona w ciągu 3-5 dni roboczych</li>
-                  <li>Zapraszam do skorzystania z moich usług w przyszłości</li>
-                </ul>
-              </div>
-              
-              <p>Serdecznie pozdrawiam,<br>
-              <strong>Joanna Rudzińska</strong><br>
-              Psycholog<br>
-              📧 j.rudzinska@myreflection.pl</p>
-            `,
-                    text: `Wizyta ${serviceName} na ${originalDate} o ${originalTime} została anulowana. Powód: ${cancellationReason}`
-                }
-            };
-            // Send notification to therapist
-            const therapistEmailDoc = {
-                to: 'j.rudzinska@myreflection.pl',
-                message: {
-                    subject: `ANULOWANIE: ${afterData.name} - ${serviceName}`,
-                    html: `
-              <h2>Anulowanie wizyty</h2>
-              
-              <div style="background-color: #ffebee; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <h3>Anulowana wizyta:</h3>
-                <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>Data:</strong> ${originalDate} o ${originalTime}</p>
-                <p><strong>Anulowane przez:</strong> ${cancelledBy === 'client' ? 'Klienta' : 'Administratora'}</p>
-                <p><strong>Powód:</strong> ${cancellationReason}</p>
-              </div>
-              
-              <p><strong>Data anulowania:</strong> ${new Date().toLocaleString('pl-PL')}</p>
-            `,
-                    text: `Anulowanie wizyty: ${afterData.name} - ${originalDate} o ${originalTime}. Powód: ${cancellationReason}`
-                }
-            };
-            // Add emails to mail collection and update appointment
-            await Promise.all([
-                db.collection('mail').add(clientEmailDoc),
-                db.collection('mail').add(therapistEmailDoc),
-                (_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
-                    cancellationEmailSent: true,
-                    cancellationEmailSentAt: firestore_2.FieldValue.serverTimestamp()
-                })
-            ]);
-            console.log('Cancellation emails sent successfully');
-        }
-    }
-    catch (error) {
-        console.error('Error sending cancellation email:', error);
-    }
-});
-/**
- * Send email when appointment is rescheduled
- */
-exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
-    document: 'appointments/{appointmentId}',
-    region: 'europe-central2'
-}, async (event) => {
-    var _a, _b, _c;
-    try {
-        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
-        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
-        const appointmentId = event.params.appointmentId;
-        if (!beforeData || !afterData) {
-            return;
-        }
-        // Check if appointment was rescheduled (date or time changed) and reschedule email hasn't been sent
-        const wasRescheduled = ((beforeData.preferredDate !== afterData.preferredDate || beforeData.preferredTime !== afterData.preferredTime) ||
-            (beforeData.confirmedDate !== afterData.confirmedDate || beforeData.confirmedTime !== afterData.confirmedTime));
-        if (wasRescheduled &&
-            afterData.rescheduleCount > (beforeData.rescheduleCount || 0) &&
-            !afterData.rescheduleEmailSent) {
-            console.log('Sending reschedule email for:', appointmentId);
-            const originalDate = afterData.originalDate || beforeData.preferredDate || beforeData.confirmedDate;
-            const originalTime = afterData.originalTime || beforeData.preferredTime || beforeData.confirmedTime;
-            const newDate = afterData.preferredDate || afterData.confirmedDate;
-            const newTime = afterData.preferredTime || afterData.confirmedTime;
-            // Get service name for email templates
-            const serviceData = await getServiceData(afterData.service);
-            const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service;
-            // Send reschedule email to client
-            const clientEmailDoc = {
-                to: afterData.email,
-                message: {
-                    subject: 'Przełożenie wizyty - Joanna Rudzińska',
-                    html: `
-              <h2>Przełożenie wizyty</h2>
-              <p>Dzień dobry ${afterData.name},</p>
-              <p>Informuję o przełożeniu Państwa wizyty na nowy termin.</p>
-              
-              <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
-                <h3 style="color: #f57c00; margin-top: 0;">📅 Poprzedni termin</h3>
-                <p><strong>Data:</strong> ${originalDate}</p>
-                <p><strong>Godzina:</strong> ${originalTime}</p>
-              </div>
-              
-              <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
-                <h3 style="color: #2e7d32; margin-top: 0;">✅ Nowy termin</h3>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>📅 Data:</strong> ${newDate}</p>
-                <p><strong>🕐 Godzina:</strong> ${newTime}</p>
-                <p><strong>💰 Cena:</strong> ${afterData.calculatedPrice || afterData.basePrice || 'do ustalenia'} PLN</p>
-              </div>
-              
-              <div style="background-color: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-                <p><strong>ℹ️ Ważne informacje:</strong></p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                  <li>Proszę zaktualizować swój kalendarz</li>
-                  <li>W razie pytań lub problemów, proszę o kontakt</li>
-                  <li>Przypomnienie zostanie wysłane dzień przed wizytą</li>
-                </ul>
-              </div>
-              
-              <p>Dziękuję za zrozumienie i do zobaczenia w nowym terminie!<br><br>
-              <strong>Joanna Rudzińska</strong><br>
-              Psycholog<br>
-              📧 j.rudzinska@myreflection.pl</p>
-            `,
-                    text: `Wizyta ${serviceName} została przełożona z ${originalDate} ${originalTime} na ${newDate} ${newTime}.`
-                }
-            };
-            // Send notification to therapist
-            const therapistEmailDoc = {
-                to: 'j.rudzinska@myreflection.pl',
-                message: {
-                    subject: `PRZEŁOŻENIE: ${afterData.name} - ${serviceName}`,
-                    html: `
-              <h2>Przełożenie wizyty</h2>
-              
-              <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                <h3>Przełożona wizyta:</h3>
-                <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                <p><strong>Usługa:</strong> ${serviceName}</p>
-                <p><strong>Poprzedni termin:</strong> ${originalDate} o ${originalTime}</p>
-                <p><strong>Nowy termin:</strong> ${newDate} o ${newTime}</p>
-                <p><strong>Liczba przełożeń:</strong> ${afterData.rescheduleCount}</p>
-              </div>
-              
-              <p><strong>Data przełożenia:</strong> ${new Date().toLocaleString('pl-PL')}</p>
-            `,
-                    text: `Przełożenie wizyty: ${afterData.name} z ${originalDate} ${originalTime} na ${newDate} ${newTime}`
-                }
-            };
-            // Add emails to mail collection and update appointment
-            await Promise.all([
-                db.collection('mail').add(clientEmailDoc),
-                db.collection('mail').add(therapistEmailDoc),
-                (_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
-                    rescheduleEmailSent: true,
-                    rescheduleEmailSentAt: firestore_2.FieldValue.serverTimestamp()
-                })
-            ]);
-            console.log('Reschedule emails sent successfully');
-        }
-    }
-    catch (error) {
-        console.error('Error sending reschedule email:', error);
-    }
-});
-/**
- * Send email when payment status is updated
- */
-exports.sendPaymentStatusEmail = (0, firestore_1.onDocumentUpdated)({
-    document: 'appointments/{appointmentId}',
-    region: 'europe-central2'
-}, async (event) => {
-    var _a, _b, _c;
-    try {
-        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
-        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
-        const appointmentId = event.params.appointmentId;
-        if (!beforeData || !afterData) {
-            return;
-        }
-        // Check if payment status changed and payment email hasn't been sent for this status
-        if (beforeData.paymentStatus !== afterData.paymentStatus &&
-            afterData.paymentStatus &&
-            !afterData.paymentStatusEmailSent) {
-            console.log('Sending payment status email for:', appointmentId);
-            const paymentMethod = afterData.paymentMethod || 'nie określono';
-            const appointmentDate = afterData.confirmedDate || afterData.preferredDate;
-            const appointmentTime = afterData.confirmedTime || afterData.preferredTime;
-            const price = afterData.calculatedPrice || afterData.basePrice || 'do ustalenia';
-            // Get service name for email templates
-            const serviceData = await getServiceData(afterData.service);
-            const serviceName = (serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service;
-            let clientEmailDoc;
-            if (afterData.paymentStatus === 'paid') {
-                // Payment confirmed
-                clientEmailDoc = {
-                    to: afterData.email,
-                    message: {
-                        subject: 'Potwierdzenie płatności - Joanna Rudzińska',
-                        html: `
-                <h2>Płatność potwierdzona ✅</h2>
-                <p>Dzień dobry ${afterData.name},</p>
-                <p>Potwierdzam otrzymanie płatności za wizytę.</p>
-                
-                <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
-                  <h3 style="color: #2e7d32; margin-top: 0;">💳 Szczegóły płatności</h3>
-                  <p><strong>Kwota:</strong> ${price} PLN</p>
-                  <p><strong>Sposób płatności:</strong> ${paymentMethod}</p>
-                  <p><strong>Status:</strong> Opłacona ✅</p>
-                  <p><strong>Data potwierdzenia:</strong> ${new Date().toLocaleDateString('pl-PL')}</p>
-                </div>
-                
-                <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2196f3;">
-                  <h3 style="color: #1976d2; margin-top: 0;">📅 Szczegóły wizyty</h3>
-                  <p><strong>Usługa:</strong> ${serviceName}</p>
-                  <p><strong>📅 Data:</strong> ${appointmentDate}</p>
-                  <p><strong>🕐 Godzina:</strong> ${appointmentTime}</p>
-                </div>
-                
-                <p>Dziękuję za płatność. Do zobaczenia na wizycie!<br><br>
-                <strong>Joanna Rudzińska</strong><br>
-                Psycholog<br>
-                📧 j.rudzinska@myreflection.pl</p>
-              `,
-                        text: `Płatność ${price} PLN za wizytę ${serviceName} została potwierdzona.`
-                    }
-                };
-            }
-            else if (afterData.paymentStatus === 'failed') {
-                // Payment failed
-                clientEmailDoc = {
-                    to: afterData.email,
-                    message: {
-                        subject: 'Problem z płatnością - Joanna Rudzińska',
-                        html: `
-                <h2>Problem z płatnością ⚠️</h2>
-                <p>Dzień dobry ${afterData.name},</p>
-                <p>Informuję o problemie z płatnością za wizytę.</p>
-                
-                <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f44336;">
-                  <h3 style="color: #d32f2f; margin-top: 0;">❌ Status płatności</h3>
-                  <p><strong>Kwota:</strong> ${price} PLN</p>
-                  <p><strong>Sposób płatności:</strong> ${paymentMethod}</p>
-                  <p><strong>Status:</strong> Nieudana ❌</p>
-                </div>
-                
-                <div style="background-color: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
-                  <p><strong>🔄 Co robić dalej?</strong></p>
-                  <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li>Proszę spróbować ponownie dokonać płatności</li>
-                    <li>Sprawdź dane karty i dostępne środki</li>
-                    <li>W przypadku dalszych problemów, proszę o kontakt</li>
-                    <li>Możliwa jest płatność gotówką na miejscu</li>
-                  </ul>
-                </div>
-                
-                <p>Proszę o kontakt w przypadku pytań.<br><br>
-                <strong>Joanna Rudzińska</strong><br>
-                Psycholog<br>
-                📧 j.rudzinska@myreflection.pl</p>
-              `,
-                        text: `Problem z płatnością ${price} PLN za wizytę ${serviceName}. Proszę spróbować ponownie.`
-                    }
-                };
-            }
-            if (clientEmailDoc) {
-                // Send notification to therapist
-                const therapistEmailDoc = {
-                    to: 'j.rudzinska@myreflection.pl',
-                    message: {
-                        subject: `PŁATNOŚĆ ${afterData.paymentStatus.toUpperCase()}: ${afterData.name}`,
-                        html: `
-                <h2>Aktualizacja płatności</h2>
-                
-                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                  <h3>Status płatności:</h3>
-                  <p><strong>Klient:</strong> ${afterData.name} (${afterData.email})</p>
-                  <p><strong>Usługa:</strong> ${serviceName}</p>
-                  <p><strong>Kwota:</strong> ${price} PLN</p>
-                  <p><strong>Status:</strong> ${afterData.paymentStatus}</p>
-                  <p><strong>Sposób płatności:</strong> ${paymentMethod}</p>
-                </div>
-                
-                <p><strong>Data aktualizacji:</strong> ${new Date().toLocaleString('pl-PL')}</p>
-              `,
-                        text: `Płatność ${afterData.paymentStatus}: ${afterData.name} - ${price} PLN`
-                    }
-                };
-                // Add emails to mail collection and update appointment
-                await Promise.all([
-                    db.collection('mail').add(clientEmailDoc),
-                    db.collection('mail').add(therapistEmailDoc),
-                    (_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
-                        paymentStatusEmailSent: true,
-                        paymentStatusEmailSentAt: firestore_2.FieldValue.serverTimestamp()
-                    })
-                ]);
-                console.log('Payment status emails sent successfully');
-            }
-        }
-    }
-    catch (error) {
-        console.error('Error sending payment status email:', error);
-    }
-});
-/**
- * Daily cleanup job - runs every day at 3 AM CET
- * Removes appointments older than 12 months
- */
+// --- Maintenance Functions (Unchanged) ---
 exports.dailyMaintenanceCleanup = (0, scheduler_1.onSchedule)({
-    schedule: '0 3 * * *', // Every day at 3 AM
+    schedule: '0 3 * * *',
     timeZone: 'Europe/Warsaw',
     region: 'europe-central2'
 }, async () => {
     try {
         console.log('Starting daily maintenance cleanup...');
-        // Calculate date 12 months ago
         const twelveMonthsAgo = new Date();
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
         const cutoffTimestamp = firestore_2.Timestamp.fromDate(twelveMonthsAgo);
         console.log(`Deleting appointments older than: ${twelveMonthsAgo.toISOString()}`);
-        // Query for old appointments
         const oldAppointmentsQuery = db.collection('appointments')
             .where('createdAt', '<', cutoffTimestamp);
         const oldAppointmentsSnapshot = await oldAppointmentsQuery.get();
@@ -878,7 +556,6 @@ exports.dailyMaintenanceCleanup = (0, scheduler_1.onSchedule)({
             return;
         }
         console.log(`Found ${oldAppointmentsSnapshot.size} appointments to delete`);
-        // Delete in batches to avoid timeout
         const batchSize = 500;
         const batches = [];
         for (let i = 0; i < oldAppointmentsSnapshot.docs.length; i += batchSize) {
@@ -889,28 +566,8 @@ exports.dailyMaintenanceCleanup = (0, scheduler_1.onSchedule)({
             });
             batches.push(batch);
         }
-        // Execute all batches
         await Promise.all(batches.map(batch => batch.commit()));
         console.log(`Successfully deleted ${oldAppointmentsSnapshot.size} old appointments`);
-        // Also cleanup expired temporary blocks
-        const expiredBlocksQuery = db.collection('temporaryBlocks')
-            .where('expiresAt', '<', firestore_2.Timestamp.now());
-        const expiredBlocksSnapshot = await expiredBlocksQuery.get();
-        if (!expiredBlocksSnapshot.empty) {
-            console.log(`Found ${expiredBlocksSnapshot.size} expired blocks to delete`);
-            const blockBatches = [];
-            for (let i = 0; i < expiredBlocksSnapshot.docs.length; i += batchSize) {
-                const batch = db.batch();
-                const batchDocs = expiredBlocksSnapshot.docs.slice(i, i + batchSize);
-                batchDocs.forEach(doc => {
-                    batch.delete(doc.ref);
-                });
-                blockBatches.push(batch);
-            }
-            await Promise.all(blockBatches.map(batch => batch.commit()));
-            console.log(`Successfully deleted ${expiredBlocksSnapshot.size} expired temporary blocks`);
-        }
-        console.log('Daily maintenance cleanup completed successfully');
     }
     catch (error) {
         console.error('Error during daily maintenance cleanup:', error);

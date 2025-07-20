@@ -216,7 +216,7 @@ class AppointmentBooking {
       const sanitizedData = firebaseService.sanitizeAppointmentData(appointmentData);
       
       // Validate sanitized data
-      const validation = firebaseService.validateAppointmentData(sanitizedData);
+      const validation = await firebaseService.validateAppointmentData(sanitizedData);
       if (!validation.isValid) {
         this.showMessage(validation.errors.join('<br>'), 'error');
         return;

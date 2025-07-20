@@ -77,6 +77,31 @@ class ScheduleService {
     }
   }
 
+  async getScheduleTemplate(templateId) {
+    try {
+      const templateRef = doc(db, 'scheduleTemplates', templateId);
+      const docSnap = await getDoc(templateRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+          success: true,
+          template: {
+            id: docSnap.id,
+            ...data,
+            createdAt: data.createdAt?.toDate(),
+            updatedAt: data.updatedAt?.toDate()
+          }
+        };
+      } else {
+        throw new Error('Template not found');
+      }
+    } catch (error) {
+      console.error('Error fetching schedule template:', error);
+      throw new Error('Failed to fetch schedule template');
+    }
+  }
+
   async updateScheduleTemplate(templateId, updateData) {
     try {
       const templateRef = doc(db, 'scheduleTemplates', templateId);
@@ -504,30 +529,30 @@ class ScheduleService {
 
   async validateReservationToken(token) {
     try {
-      const q = query(
-        this.reservationTokensCollection,
-        where('token', '==', token),
-        where('isUsed', '==', false),
+      // Check token directly on appointment documents (more reliable)
+      const appointmentQuery = query(
+        collection(db, 'appointments'),
+        where('reservationToken', '==', token),
         firestoreLimit(1)
       );
       
-      const querySnapshot = await getDocs(q);
+      const appointmentSnapshot = await getDocs(appointmentQuery);
       
-      if (querySnapshot.empty) {
+      if (appointmentSnapshot.empty) {
         return {
           success: false,
           message: 'Invalid or expired token'
         };
       }
 
-      const tokenDoc = querySnapshot.docs[0];
-      const tokenData = tokenDoc.data();
+      const appointmentDoc = appointmentSnapshot.docs[0];
+      const appointmentData = appointmentDoc.data();
       
-      // Check if token is expired
+      // Check if token is expired (6 months from creation)
       const now = new Date();
-      const expiresAt = tokenData.expiresAt.toDate();
+      const tokenExpiresAt = appointmentData.tokenExpiresAt?.toDate();
       
-      if (now > expiresAt) {
+      if (tokenExpiresAt && now > tokenExpiresAt) {
         return {
           success: false,
           message: 'Token has expired'
@@ -537,10 +562,10 @@ class ScheduleService {
       return {
         success: true,
         tokenData: {
-          id: tokenDoc.id,
-          ...tokenData,
-          expiresAt: tokenData.expiresAt.toDate(),
-          createdAt: tokenData.createdAt.toDate()
+          appointmentId: appointmentDoc.id,
+          token: appointmentData.reservationToken,
+          expiresAt: tokenExpiresAt,
+          createdAt: appointmentData.createdAt?.toDate()
         }
       };
     } catch (error) {

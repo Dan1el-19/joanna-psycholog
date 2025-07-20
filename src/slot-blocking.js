@@ -15,20 +15,56 @@ class SlotBlocking {
     }
   }
 
+  // Central event handler setup
   setup() {
-    // This will be called from admin navigation when needed
+    document.body.addEventListener('click', (event) => {
+      const actionElement = event.target.closest('[data-action]');
+      if (!actionElement) return;
+
+      const action = actionElement.dataset.action;
+
+      switch (action) {
+        case 'show-add-block-modal':
+          this.showAddBlockModal();
+          break;
+        case 'hide-add-block-modal':
+          this.hideAddBlockModal();
+          break;
+        case 'remove-block':
+          { const blockId = actionElement.dataset.blockId;
+          this.removeBlock(blockId);
+          break; }
+        case 'dismiss-message':
+          actionElement.closest('.slot-blocking-message')?.remove();
+          break;
+      }
+    });
+
+    // Handle form submissions
+    document.body.addEventListener('submit', (event) => {
+      if (event.target.id === 'add-block-form') {
+        event.preventDefault();
+        this.handleAddBlock(event);
+      }
+    });
+
+    // Handle select changes
+    document.body.addEventListener('change', (event) => {
+      if (event.target.id === 'block-type') {
+        this.handleBlockTypeChange(event.target.value);
+      }
+    });
   }
 
   async renderBlockingInterface() {
     return `
       <div class="space-y-6">
-        <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
             <h2 class="text-lg font-medium text-gray-900">Blokowanie terminów</h2>
             <p class="text-sm text-gray-600">Zarządzaj niedostępnymi terminami w kalendarzu</p>
           </div>
-          <button onclick="slotBlocking.showAddBlockModal()" 
+          <button data-action="show-add-block-modal" 
                   class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -37,7 +73,6 @@ class SlotBlocking {
           </button>
         </div>
 
-        <!-- Current blocks list -->
         <div class="bg-white shadow rounded-lg">
           <div class="px-4 py-5 sm:p-6">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Aktywne blokady</h3>
@@ -50,12 +85,11 @@ class SlotBlocking {
           </div>
         </div>
 
-        <!-- Add block modal -->
         <div id="add-block-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
           <div class="relative top-20 mx-auto p-5 border w-full max-w-md bg-white rounded-md shadow">
             <div class="flex justify-between items-center mb-4">
               <h3 class="text-lg font-medium text-gray-900">Dodaj blokadę</h3>
-              <button onclick="slotBlocking.hideAddBlockModal()" class="text-gray-400 hover:text-gray-600">
+              <button data-action="hide-add-block-modal" class="text-gray-400 hover:text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -108,7 +142,7 @@ class SlotBlocking {
               </div>
 
               <div class="flex justify-end space-x-3 mt-6">
-                <button type="button" onclick="slotBlocking.hideAddBlockModal()" 
+                <button type="button" data-action="hide-add-block-modal"
                         class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
                   Anuluj
                 </button>
@@ -191,7 +225,7 @@ class SlotBlocking {
               </div>
               ${block.reason ? `<p class="text-sm text-gray-500">${block.reason}</p>` : ''}
             </div>
-            <button onclick="slotBlocking.removeBlock('${block.id}')" 
+            <button data-action="remove-block" data-block-id="${block.id}"
                     class="flex-shrink-0 text-red-600 hover:text-red-800 transition-colors">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -209,9 +243,7 @@ class SlotBlocking {
     const modal = document.getElementById('add-block-modal');
     if (modal) {
       modal.classList.remove('hidden');
-      this.setupModalHandlers();
       
-      // Set minimum date to today
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('start-date').min = today;
       document.getElementById('end-date').min = today;
@@ -228,23 +260,6 @@ class SlotBlocking {
     }
   }
 
-  setupModalHandlers() {
-    const blockTypeSelect = document.getElementById('block-type');
-    const form = document.getElementById('add-block-form');
-
-    if (blockTypeSelect) {
-      blockTypeSelect.addEventListener('change', (e) => {
-        this.handleBlockTypeChange(e.target.value);
-      });
-    }
-
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.handleAddBlock(e);
-      });
-    }
-  }
 
   handleBlockTypeChange(blockType) {
     this.hideTimeFields();
@@ -308,7 +323,6 @@ class SlotBlocking {
       isAllDay: !formData.get('startTime') && !formData.get('endTime')
     };
 
-    // Validation
     if (blockData.endDate < blockData.startDate) {
       this.showError('Data końcowa nie może być wcześniejsza od daty początkowej');
       return;
@@ -325,7 +339,6 @@ class SlotBlocking {
       this.showSuccess('Blokada została dodana pomyślnie');
       await this.loadBlocks();
       
-      // Refresh calendar if it exists
       if (window.calendarInterface) {
         window.calendarInterface.refreshCalendar();
       }
@@ -345,7 +358,6 @@ class SlotBlocking {
       this.showSuccess('Blokada została usunięta');
       await this.loadBlocks();
       
-      // Refresh calendar if it exists
       if (window.calendarInterface) {
         window.calendarInterface.refreshCalendar();
       }
@@ -364,11 +376,7 @@ class SlotBlocking {
   }
 
   showMessage(message, type = 'info') {
-    // Remove existing messages
-    const existingMessage = document.querySelector('.slot-blocking-message');
-    if (existingMessage) {
-      existingMessage.remove();
-    }
+    document.querySelector('.slot-blocking-message')?.remove();
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `slot-blocking-message fixed top-4 right-4 p-4 rounded-md shadow-lg z-50 ${this.getMessageClasses(type)}`;
@@ -381,7 +389,7 @@ class SlotBlocking {
           <p class="text-sm font-medium">${message}</p>
         </div>
         <div class="ml-auto pl-3">
-          <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600">
+          <button data-action="dismiss-message" class="text-gray-400 hover:text-gray-600">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -392,12 +400,7 @@ class SlotBlocking {
 
     document.body.appendChild(messageDiv);
 
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (messageDiv.parentNode) {
-        messageDiv.remove();
-      }
-    }, 5000);
+    setTimeout(() => messageDiv.remove(), 5000);
   }
 
   getMessageClasses(type) {
@@ -414,17 +417,11 @@ class SlotBlocking {
   getMessageIcon(type) {
     switch (type) {
       case 'success':
-        return `<svg class="w-5 h-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-        </svg>`;
+        return `<svg class="w-5 h-5 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`;
       case 'error':
-        return `<svg class="w-5 h-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-        </svg>`;
+        return `<svg class="w-5 h-5 text-red-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
       default:
-        return `<svg class="w-5 h-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-        </svg>`;
+        return `<svg class="w-5 h-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>`;
     }
   }
 }
