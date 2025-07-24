@@ -24,8 +24,8 @@ class ScheduleEditor {
 
   // Central event handler for the entire component
   setupEventListeners(container) {
-      if (container.dataset.eventsAttached) return;
-      container.dataset.eventsAttached = 'true';
+    if (container.dataset.eventsAttached) return;
+    container.dataset.eventsAttached = 'true';
 
       // Click handler
       container.addEventListener('click', (event) => {
@@ -55,7 +55,7 @@ class ScheduleEditor {
           }
       });
 
-      // Change handler for toggles and selects
+  // Change handler for toggles and selects
       container.addEventListener('change', (event) => {
           const actionElement = event.target.closest('[data-action]');
           if (!actionElement) return;
@@ -64,8 +64,13 @@ class ScheduleEditor {
           const day = actionElement.dataset.day;
 
           switch(action) {
-              case 'toggle-day-schedule': this.toggleDaySchedule(day, event.target.checked); break;
-              case 'toggle-assignment-mode': this.toggleAssignmentMode(event.target.value); break;
+              case 'toggle-day-schedule': 
+                  console.log(`Zmiana dla '${day}'. Stan 'checked':`, event.target.checked);
+                  this.toggleDaySchedule(day, event.target.checked);
+                  break;
+              case 'toggle-assignment-mode': 
+                  this.toggleAssignmentMode(event.target.value); 
+                  break;
           }
       });
 
@@ -213,24 +218,52 @@ class ScheduleEditor {
   }
 
   renderWeeklyScheduleEditor() {
-    const days = [{ key: 'monday', name: 'Poniedziałek' }, { key: 'tuesday', name: 'Wtorek' }, { key: 'wednesday', name: 'Środa' }, { key: 'thursday', name: 'Czwartek' }, { key: 'friday', name: 'Piątek' }, { key: 'saturday', name: 'Sobota' }, { key: 'sunday', name: 'Niedziela' }];
-    const timeSlots = this.generateTimeSlots();
-    return days.map(day => `
-      <div class="border border-gray-200 rounded-lg p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h5 class="font-medium text-gray-900">${day.name}</h5>
-          <div class="flex items-center space-x-3">
-            <button type="button" data-action="select-all-slots" data-day="${day.key}" class="text-xs text-blue-600 hover:text-blue-800">Zaznacz wszystkie</button>
-            <button type="button" data-action="clear-all-slots" data-day="${day.key}" class="text-xs text-gray-600 hover:text-gray-800">Wyczyść</button>
-            <label class="flex items-center"><input type="checkbox" data-action="toggle-day-schedule" data-day="${day.key}" checked class="mr-2 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span class="text-sm text-gray-600">Dzień roboczy</span></label>
+    const days = [
+      { key: 'monday', label: 'Poniedziałek' },
+      { key: 'tuesday', label: 'Wtorek' },
+      { key: 'wednesday', label: 'Środa' },
+      { key: 'thursday', label: 'Czwartek' },
+      { key: 'friday', label: 'Piątek' },
+      { key: 'saturday', label: 'Sobota' },
+      { key: 'sunday', label: 'Niedziela' }
+    ];
+
+    return days.map(day => {
+      const timeSlots = this.generateTimeSlots();
+      const isWorkingDay = this.isDefaultWorkingDay(day.key);
+      
+      return `
+        <div class="border rounded-lg p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h5 class="font-medium text-gray-700">${day.label}</h5>
+            <div class="flex items-center space-x-3">
+              <button type="button" data-action="select-all-slots" data-day="${day.key}" 
+                      class="text-xs text-blue-600 hover:text-blue-800">Zaznacz wszystkie</button>
+              <button type="button" data-action="clear-all-slots" data-day="${day.key}" 
+                      class="text-xs text-red-600 hover:text-red-800">Wyczyść</button>
+              <label class="flex items-center">
+                <input type="checkbox" data-action="toggle-day-schedule" data-day="${day.key}" 
+                       ${isWorkingDay ? 'checked' : ''} 
+                       class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <span class="text-sm text-gray-600">Dzień roboczy</span>
+              </label>
+            </div>
+          </div>
+          <div id="${day.key}-schedule" ${isWorkingDay ? '' : 'style="display: none;"'}>
+            <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+              ${timeSlots.map(time => `
+                <label class="flex items-center text-sm">
+                  <input type="checkbox" name="${day.key}-times" value="${time}" 
+                         ${isWorkingDay && this.isDefaultWorkingHour(time) ? 'checked' : ''}
+                         class="mr-1 h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                  <span class="text-xs">${time}</span>
+                </label>
+              `).join('')}
+            </div>
           </div>
         </div>
-        <div id="${day.key}-schedule" class="space-y-3">
-          <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-            ${timeSlots.map(time => `<label class="flex items-center text-xs"><input type="checkbox" name="${day.key}-times" value="${time}" class="mr-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500 time-slot-checkbox" ${this.isDefaultWorkingHour(time) ? 'checked' : ''}><span class="text-gray-700">${time}</span></label>`).join('')}
-          </div>
-        </div>
-      </div>`).join('');
+      `;
+    }).join('');
   }
 
   generateTimeSlots() {
@@ -243,6 +276,7 @@ class ScheduleEditor {
   }
 
   isDefaultWorkingHour = (time) => { const [hour] = time.split(':').map(Number); return hour >= 9 && hour < 17; };
+  isDefaultWorkingDay = (dayKey) => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(dayKey);
 
   renderMonthCheckboxes() {
     const months = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
@@ -335,6 +369,11 @@ class ScheduleEditor {
       option.textContent = template.name;
       select.appendChild(option);
     });
+    
+    // Auto-select if only one template exists
+    if (this.templates.length === 1) {
+      select.value = this.templates[0].id;
+    }
   }
 
   showCreateTemplateModal = () => document.getElementById('create-template-modal')?.classList.remove('hidden');
@@ -349,6 +388,8 @@ class ScheduleEditor {
     if (modal) {
       modal.classList.remove('hidden');
       document.getElementById('assign-year').value = new Date().getFullYear();
+      // Refresh template select to ensure it's up to date
+      this.updateTemplateSelect();
     }
   }
   hideAssignTemplateModal() {
@@ -415,7 +456,12 @@ class ScheduleEditor {
 
   selectAllSlots = (day) => document.querySelectorAll(`input[name="${day}-times"]`).forEach(cb => cb.checked = true);
   clearAllSlots = (day) => document.querySelectorAll(`input[name="${day}-times"]`).forEach(cb => cb.checked = false);
-  toggleDaySchedule = (day, enabled) => document.getElementById(`${day}-schedule`).style.display = enabled ? 'block' : 'none';
+  toggleDaySchedule = (day, enabled) => {
+    const scheduleElement = document.getElementById(`${day}-schedule`);
+    if (scheduleElement) {
+      scheduleElement.style.display = enabled ? 'block' : 'none';
+    }
+  };
   
   async editTemplate(templateId) {
     try {
@@ -494,10 +540,42 @@ class ScheduleEditor {
           modal.remove();
         }
         
-        // Handle close button clicks
+        // Handle action buttons
         const actionElement = event.target.closest('[data-action]');
-        if (actionElement && actionElement.dataset.action === 'close-edit-template-modal') {
-          modal.remove();
+        if (actionElement) {
+          const action = actionElement.dataset.action;
+          const day = actionElement.dataset.day;
+          
+          switch(action) {
+            case 'close-edit-template-modal':
+              modal.remove();
+              break;
+            case 'select-all-slots':
+              modal.querySelectorAll(`input[name="${day}-times"]`).forEach(cb => cb.checked = true);
+              break;
+            case 'clear-all-slots':
+              modal.querySelectorAll(`input[name="${day}-times"]`).forEach(cb => cb.checked = false);
+              break;
+            case 'toggle-day-schedule': {
+              const scheduleDiv = modal.querySelector(`#${day}-schedule`);
+              if (scheduleDiv) {
+                scheduleDiv.style.display = event.target.checked ? 'block' : 'none';
+              }
+              break;
+            }
+          }
+        }
+      });
+
+      // Handle change events for checkboxes
+      modal.addEventListener('change', (event) => {
+        const actionElement = event.target.closest('[data-action]');
+        if (actionElement && actionElement.dataset.action === 'toggle-day-schedule') {
+          const day = actionElement.dataset.day;
+          const scheduleDiv = modal.querySelector(`#${day}-schedule`);
+          if (scheduleDiv) {
+            scheduleDiv.style.display = event.target.checked ? 'block' : 'none';
+          }
         }
       });
       
@@ -525,18 +603,19 @@ class ScheduleEditor {
       
       return `
         <div class="border rounded-lg p-4">
-          <div class="flex justify-between items-center mb-3">
-            <label class="flex items-center">
-              <input type="checkbox" data-action="toggle-day-schedule" data-day="${day.key}" 
-                     ${dayTimes.length > 0 ? 'checked' : ''} 
-                     class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-              <span class="font-medium text-gray-700">${day.label}</span>
-            </label>
-            <div class="space-x-2">
+          <div class="flex items-center justify-between mb-3">
+            <h5 class="font-medium text-gray-700">${day.label}</h5>
+            <div class="flex items-center space-x-3">
               <button type="button" data-action="select-all-slots" data-day="${day.key}" 
                       class="text-xs text-blue-600 hover:text-blue-800">Zaznacz wszystkie</button>
               <button type="button" data-action="clear-all-slots" data-day="${day.key}" 
                       class="text-xs text-red-600 hover:text-red-800">Wyczyść</button>
+              <label class="flex items-center">
+                <input type="checkbox" data-action="toggle-day-schedule" data-day="${day.key}" 
+                       ${dayTimes.length > 0 ? 'checked' : ''} 
+                       class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <span class="text-sm text-gray-600">Dzień roboczy</span>
+              </label>
             </div>
           </div>
           <div id="${day.key}-schedule" ${dayTimes.length === 0 ? 'style="display: none;"' : ''}>

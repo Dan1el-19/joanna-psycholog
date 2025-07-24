@@ -45,10 +45,10 @@ class AdminPanel {
 
     // Centralny listener dla tego modułu
     container.addEventListener('click', async (event) => {
-        const actionElement = event.target.closest('[data-action]');
-        if (!actionElement) return;
+    const actionElement = event.target.closest('[data-action]');
+    if (!actionElement) return;
         
-        event.preventDefault();
+        
         const action = actionElement.dataset.action;
         const id = actionElement.dataset.id;
         const status = actionElement.dataset.status;
@@ -57,15 +57,28 @@ class AdminPanel {
         const time = actionElement.dataset.time;
         const method = actionElement.dataset.method;
 
-        switch (action) {
-            case 'update-status': await this.updateAppointmentStatus(id, status); break;
-            case 'mark-completed': await this.markSessionCompleted(id); break;
-            case 'show-payment-dialog': this.showPaymentDialog(id, status, method); break;
-            case 'show-notes-dialog': this.showNotesDialog(id, notes); break;
-            case 'show-reschedule-dialog': this.showRescheduleDialog(id, date, time); break;
-            case 'archive': await this.archiveAppointment(id); break;
-            case 'unarchive': await this.unarchiveAppointment(id); break;
-        }
+switch (action) {
+        case 'update-status':
+        case 'mark-completed':
+        case 'show-payment-dialog':
+        case 'show-notes-dialog':
+        case 'show-reschedule-dialog':
+        case 'archive':
+        case 'unarchive':
+            event.preventDefault(); // ✅ PRZENOSIMY TO TUTAJ
+            break;
+    }
+
+    // Teraz wykonujemy akcje
+    switch (action) {
+        case 'update-status': await this.updateAppointmentStatus(id, status); break;
+        case 'mark-completed': await this.markSessionCompleted(id); break;
+        case 'show-payment-dialog': this.showPaymentDialog(id, status, method); break;
+        case 'show-notes-dialog': this.showNotesDialog(id, notes); break;
+        case 'show-reschedule-dialog': this.showRescheduleDialog(id, date, time); break;
+        case 'archive': await this.archiveAppointment(id); break;
+        case 'unarchive': await this.unarchiveAppointment(id); break;
+    }
     });
 
     // Globalny listener dla dialogów (dodawanych do document.body)

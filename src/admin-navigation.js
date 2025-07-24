@@ -60,6 +60,9 @@ class AdminNavigation {
         case 'filter-appointments': app.get('adminPanel')?.filterAppointments(filter); break;
         case 'load-appointments': app.get('adminPanel')?.loadAppointments(); break;
         case 'maintenance-cleanup': app.get('adminPanel')?.performMaintenanceCleanup(); break;
+        case 'delete-collection': await this.deleteCollection(actionElement.dataset.collection); break;
+        case 'delete-anonymous-users': await this.deleteAnonymousUsers(); break;
+        case 'verify-database-pin': this.verifyDatabasePin(); break;
       }
     });
   }
@@ -226,17 +229,48 @@ class AdminNavigation {
         content.innerHTML = `
             <div class="space-y-6">${blockingInterface}
                 <div class="bg-white shadow rounded-lg p-4 sm:p-6">
-                    <h2 class="text-lg font-medium text-gray-900 mb-4">Ustawienia systemu</h2>
-                    <div class="space-y-4">
-                        <div class="border-b border-gray-200 pb-4">
-                            <h3 class="text-md font-medium text-gray-700 mb-2">Czyszczenie bazy danych</h3>
+                    <h2 class="text-lg font-medium text-gray-900 mb-4">Zarządzanie bazą danych</h2>
+                    <div class="space-y-6">
+                        <!-- PIN Security Section -->
+                        <div id="database-pin-section" class="border-b border-gray-200 pb-6">
+                            <h3 class="text-md font-medium text-gray-700 mb-3">🔒 Zabezpieczenie dostępu</h3>
+                            <div class="flex items-center space-x-3">
+                                <input type="password" id="database-pin-input" placeholder="Wprowadź PIN zabezpieczający" class="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm" maxlength="4">
+                                <button data-action="verify-database-pin" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm">Odblokuj</button>
+                            </div>
+                            <p class="text-sm text-gray-600 mt-2">Wprowadź PIN aby uzyskać dostęp do funkcji zarządzania bazą danych.</p>
+                        </div>
+                        <div id="database-management-section" class="hidden space-y-6">
+                            <div class="border-b border-gray-200 pb-6">
+                                <h3 class="text-md font-medium text-gray-700 mb-3">Usuwanie kolekcji</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    <button data-action="delete-collection" data-collection="appointments" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń wszystkie wizyty</button>
+                                    <button data-action="delete-collection" data-collection="services" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń wszystkie usługi</button>
+                                    <button data-action="delete-collection" data-collection="reservationTokens" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń tokeny rezerwacji</button>
+                                    <button data-action="delete-collection" data-collection="scheduleTemplates" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń szablony grafików</button>
+                                    <button data-action="delete-collection" data-collection="monthlySchedules" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń grafiki miesięczne</button>
+                                    <button data-action="delete-collection" data-collection="blockedSlots" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń blokady terminów</button>
+                                    <button data-action="delete-collection" data-collection="templateAssignments" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń przypisania szablonów</button>
+                                    <button data-action="delete-collection" data-collection="mail" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń wszystkie maile</button>
+                                    <button data-action="delete-collection" data-collection="contactMessages" class="px-3 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm">Usuń wiadomości kontaktowe</button>
+                                </div>
+                                <p class="text-sm text-gray-600 mt-3">⚠️ Uwaga: Te operacje są nieodwracalne! Wszystkie dane z wybranej kolekcji zostaną trwale usunięte.</p>
+                            </div>
+                            <div class="border-b border-gray-200 pb-6">
+                                <h3 class="text-md font-medium text-gray-700 mb-3">Zarządzanie użytkownikami</h3>
+                                <button data-action="delete-anonymous-users" class="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors">Usuń wszystkich użytkowników anonymous</button>
+                                <p class="text-sm text-gray-600 mt-2">Usuwa wszystkie konta anonymous z Firebase Authentication. Nie wpływa na konta administratorów.</p>
+                            </div>
+                        </div>
+                        <div class="border-b border-gray-200 pb-6">
+                            <h3 class="text-md font-medium text-gray-700 mb-3">Czyszczenie automatyczne</h3>
                             <button data-action="maintenance-cleanup" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors">Usuń stare wizyty (12+ miesięcy)</button>
                             <p class="text-sm text-gray-600 mt-2">Automatycznie usuwa wizyty starsze niż 12 miesięcy. Ta operacja jest nieodwracalna.</p>
                         </div>
                         <div>
                             <h3 class="text-md font-medium text-gray-700 mb-2">Informacje o systemie</h3>
                             <div class="text-sm text-gray-600 space-y-1">
-                                <p>Wersja: 2.2.0 (Refactored)</p>
+                                <p>Wersja: 2.5.1 (Fixed)</p>
                                 <p>Ostatnia aktualizacja: ${new Date().toLocaleDateString('pl-PL')}</p>
                                 <p>Status Firebase: <span class="text-green-600">Połączony</span></p>
                             </div>
@@ -245,6 +279,7 @@ class AdminNavigation {
                 </div>
             </div>`;
         await slotBlockingInstance.loadBlocks();
+        this.setupDatabasePinListener();
     } catch (error) {
         console.error('Error loading settings view:', error);
         content.innerHTML = `<div class="text-center py-8 text-red-500"><p>Błąd podczas ładowania ustawień.</p></div>`;
@@ -299,6 +334,126 @@ class AdminNavigation {
         console.error('Error during logout:', error);
         window.location.href = '/';
       }
+    }
+  }
+
+  async deleteCollection(collectionName) {
+    if (!adminAuth.isAuthenticated()) return;
+    
+    const collectionLabels = {
+      'appointments': 'wszystkie wizyty',
+      'services': 'wszystkie usługi',
+      'reservationTokens': 'wszystkie tokeny rezerwacji',
+      'scheduleTemplates': 'wszystkie szablony grafików',
+      'monthlySchedules': 'wszystkie grafiki miesięczne',
+      'blockedSlots': 'wszystkie blokady terminów',
+      'templateAssignments': 'wszystkie przypisania szablonów',
+      'mail': 'wszystkie maile',
+      'contactMessages': 'wszystkie wiadomości kontaktowe'
+    };
+
+    const label = collectionLabels[collectionName] || collectionName;
+    
+    const confirmed = await showConfirmation(
+      'Usuwanie kolekcji',
+      `Czy na pewno chcesz usunąć ${label}? Ta operacja jest NIEODWRACALNA i usunie wszystkie dane z kolekcji "${collectionName}".`,
+      'Tak, usuń wszystko'
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      showToast('Rozpoczynanie usuwania kolekcji...', 'info');
+      
+      // Wywołaj Cloud Function do usuwania kolekcji
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app: firebaseApp } = await import('./firebase-config.js');
+      
+      const functions = getFunctions(firebaseApp, 'europe-central2');
+      const deleteCollectionFunction = httpsCallable(functions, 'deleteCollection');
+      
+      const result = await deleteCollectionFunction({ collectionName });
+      const data = result.data;
+      
+      if (data.success) {
+        showToast(`Pomyślnie usunięto ${data.deletedCount || 0} dokumentów z kolekcji "${collectionName}"`, 'success');
+        
+        // Odśwież widok jeśli usunięto dane z aktualnie wyświetlanej sekcji
+        if ((collectionName === 'appointments' && this.currentView === 'appointments') ||
+            (collectionName === 'services' && this.currentView === 'services')) {
+          await this.switchToView(this.currentView);
+        }
+      } else {
+        throw new Error(data.error || 'Nieznany błąd');
+      }
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      showToast(`Błąd podczas usuwania kolekcji: ${error.message}`, 'error');
+    }
+  }
+
+  async deleteAnonymousUsers() {
+    if (!adminAuth.isAuthenticated()) return;
+    
+    const confirmed = await showConfirmation(
+      'Usuwanie użytkowników anonymous',
+      'Czy na pewno chcesz usunąć wszystkich użytkowników anonymous z Firebase Authentication? Ta operacja jest NIEODWRACALNA.',
+      'Tak, usuń wszystkich'
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      showToast('Rozpoczynanie usuwania użytkowników anonymous...', 'info');
+      
+      // Wywołaj Cloud Function do usuwania użytkowników anonymous
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const { app: firebaseApp } = await import('./firebase-config.js');
+      
+      const functions = getFunctions(firebaseApp, 'europe-central2');
+      const deleteAnonymousUsersFunction = httpsCallable(functions, 'deleteAnonymousUsers');
+      
+      const result = await deleteAnonymousUsersFunction();
+      const data = result.data;
+      
+      if (data.success) {
+        showToast(`Pomyślnie usunięto ${data.deletedCount || 0} użytkowników anonymous`, 'success');
+      } else {
+        throw new Error(data.error || 'Nieznany błąd');
+      }
+    } catch (error) {
+      console.error('Error deleting anonymous users:', error);
+      showToast(`Błąd podczas usuwania użytkowników: ${error.message}`, 'error');
+    }
+  }
+
+  verifyDatabasePin() {
+    const pinInput = document.getElementById('database-pin-input');
+    const enteredPin = pinInput.value.trim();
+    const correctPin = '7072';
+    
+    if (enteredPin === correctPin) {
+      // Hide PIN section and show management section
+      document.getElementById('database-pin-section').classList.add('hidden');
+      document.getElementById('database-management-section').classList.remove('hidden');
+      showToast('Dostęp odblokowany! Funkcje zarządzania bazą danych są teraz dostępne.', 'success');
+      pinInput.value = ''; // Clear PIN input for security
+    } else {
+      showToast('Nieprawidłowy PIN zabezpieczający!', 'error');
+      pinInput.value = ''; // Clear PIN input
+      pinInput.focus(); // Focus back to input
+    }
+  }
+
+  setupDatabasePinListener() {
+    const pinInput = document.getElementById('database-pin-input');
+    if (pinInput) {
+      // Allow Enter key to verify PIN
+      pinInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+          this.verifyDatabasePin();
+        }
+      });
     }
   }
 }

@@ -20,3 +20,9 @@ body {
   /* Tutaj nic się nie zmienia - wciąż używamy nazw z motywu Tailwind */
   @apply bg-background text-primary font-sans;
 }
+
+/* Klasa dla kontrolowanego zawijania dwuwyrazowych nazw usług */
+.service-title-wrap {
+  word-spacing: 100vw;
+  line-height: 1.2;
+}

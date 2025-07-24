@@ -5,8 +5,10 @@
 
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onCall } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin
 initializeApp();
@@ -836,6 +838,159 @@ export const dailyMaintenanceCleanup = onSchedule(
     } catch (error) {
       console.error('Error during daily maintenance cleanup:', error);
       throw error;
+    }
+  }
+);
+
+// --- Database Management Functions ---
+export const deleteCollection = onCall(
+  {
+    region: 'europe-central2'
+  },
+  async (request) => {
+    try {
+      // Verify admin authentication
+      if (!request.auth || request.auth.token.firebase.sign_in_provider === 'anonymous') {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      const { collectionName } = request.data;
+      
+      if (!collectionName) {
+        throw new Error('Collection name is required');
+      }
+
+      // Security check - prevent deletion of critical collections
+      const allowedCollections = [
+        'appointments',
+        'services', 
+        'reservationTokens',
+        'scheduleTemplates',
+        'monthlySchedules',
+        'blockedSlots',
+        'templateAssignments',
+        'mail',
+        'contactMessages'
+      ];
+
+      if (!allowedCollections.includes(collectionName)) {
+        throw new Error(`Collection "${collectionName}" is not allowed to be deleted`);
+      }
+
+      console.log(`Starting deletion of collection: ${collectionName}`);
+      
+      const collectionRef = db.collection(collectionName);
+      const snapshot = await collectionRef.get();
+      
+      if (snapshot.empty) {
+        return {
+          success: true,
+          deletedCount: 0,
+          message: `Collection "${collectionName}" was already empty`
+        };
+      }
+
+      console.log(`Found ${snapshot.size} documents to delete in collection: ${collectionName}`);
+      
+      // Delete in batches to avoid timeout
+      const batchSize = 500;
+      let deletedCount = 0;
+      
+      for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+        const batch = db.batch();
+        const batchDocs = snapshot.docs.slice(i, i + batchSize);
+        
+        batchDocs.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        deletedCount += batchDocs.length;
+        
+        console.log(`Deleted batch: ${deletedCount}/${snapshot.size} documents`);
+      }
+      
+      console.log(`Successfully deleted all ${deletedCount} documents from collection: ${collectionName}`);
+      
+      return {
+        success: true,
+        deletedCount,
+        message: `Successfully deleted ${deletedCount} documents from collection "${collectionName}"`
+      };
+      
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+);
+
+export const deleteAnonymousUsers = onCall(
+  {
+    region: 'europe-central2'
+  },
+  async (request) => {
+    try {
+      // Verify admin authentication
+      if (!request.auth || request.auth.token.firebase.sign_in_provider === 'anonymous') {
+        throw new Error('Unauthorized: Admin access required');
+      }
+
+      console.log('Starting deletion of anonymous users...');
+      
+      const auth = getAuth();
+      let deletedCount = 0;
+      let nextPageToken: string | undefined;
+      
+      do {
+        // List users in batches
+        const listUsersResult = await auth.listUsers(1000, nextPageToken);
+        
+        // Filter anonymous users
+        const anonymousUsers = listUsersResult.users.filter(user => 
+          user.providerData.length === 0 || 
+          user.providerData.every(provider => provider.providerId === 'anonymous')
+        );
+        
+        if (anonymousUsers.length > 0) {
+          console.log(`Found ${anonymousUsers.length} anonymous users in this batch`);
+          
+          // Delete anonymous users in smaller batches
+          const deletePromises = anonymousUsers.map(user => 
+            auth.deleteUser(user.uid).catch(error => {
+              console.warn(`Failed to delete user ${user.uid}:`, error);
+              return null;
+            })
+          );
+          
+          const results = await Promise.allSettled(deletePromises);
+          const successfulDeletions = results.filter(result => result.status === 'fulfilled').length;
+          
+          deletedCount += successfulDeletions;
+          console.log(`Deleted ${successfulDeletions} anonymous users from this batch`);
+        }
+        
+        nextPageToken = listUsersResult.pageToken;
+        
+      } while (nextPageToken);
+      
+      console.log(`Successfully deleted ${deletedCount} anonymous users`);
+      
+      return {
+        success: true,
+        deletedCount,
+        message: `Successfully deleted ${deletedCount} anonymous users`
+      };
+      
+    } catch (error) {
+      console.error('Error deleting anonymous users:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
 );

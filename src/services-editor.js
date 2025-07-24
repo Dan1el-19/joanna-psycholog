@@ -125,8 +125,13 @@ class ServicesEditor {
             <input type="hidden" id="service-id" value="">
             <div><label for="service-name" class="block text-sm font-medium text-gray-700">Nazwa usługi *</label><input type="text" id="service-name" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
             <div><label for="service-description" class="block text-sm font-medium text-gray-700">Opis</label><textarea id="service-description" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea></div>
-            <div><label for="service-duration" class="block text-sm font-medium text-gray-700">Czas trwania (minuty) *</label><input type="number" id="service-duration" required min="15" max="240" step="15" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+            <div><label for="service-duration" class="block text-sm font-medium text-gray-700">Czas trwania (minuty) *</label><input type="number" id="service-duration" required min="5" max="180" step="1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"><p class="text-xs text-gray-500 mt-1">Zakres: 5-180 minut</p></div>
             <div><label for="service-price" class="block text-sm font-medium text-gray-700">Cena (zł)</label><input type="number" id="service-price" min="0" step="0.01" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div><label for="service-border-color" class="block text-sm font-medium text-gray-700">Kolor ramki</label><input type="color" id="service-border-color" value="#1F2937" class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+              <div><label for="service-price-color" class="block text-sm font-medium text-gray-700">Kolor ceny</label><input type="color" id="service-price-color" value="#FFFFFF" class="mt-1 block w-full h-10 border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></div>
+            </div>
+            <div><label for="service-icon" class="block text-sm font-medium text-gray-700">Ikona SVG (opcjonalne)</label><textarea id="service-icon" rows="3" placeholder='Wklej cały kod SVG lub tylko zawartość...' class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"></textarea><p class="text-xs text-gray-500 mt-1">Możesz wkleić cały kod SVG - system automatycznie wyciągnie potrzebną część: <a href="https://iconsvg.xyz/" target="_blank" class="text-blue-600 hover:text-blue-800 underline">Kreator Ikon</a></p></div>
             <div><label for="service-slug" class="block text-sm font-medium text-gray-700">Identyfikator (slug) *</label><input type="text" id="service-slug" required pattern="[a-z0-9\\-]+" placeholder="np. terapia-indywidualna" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"><p class="text-xs text-gray-500 mt-1">Tylko małe litery, cyfry i myślniki</p></div>
             <div class="pt-4 flex justify-end space-x-3">
               <button type="button" data-action="hide-service-modal" class="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">Anuluj</button>
@@ -180,6 +185,9 @@ class ServicesEditor {
     title.textContent = 'Dodaj usługę';
     form.reset();
     document.getElementById('service-id').value = '';
+    document.getElementById('service-border-color').value = '#1F2937';
+    document.getElementById('service-price-color').value = '#FFFFFF';
+    document.getElementById('service-icon').value = '';
     modal.classList.remove('hidden');
   }
 
@@ -199,6 +207,9 @@ class ServicesEditor {
     document.getElementById('service-description').value = service.description || '';
     document.getElementById('service-duration').value = service.duration;
     document.getElementById('service-price').value = service.price || '';
+    document.getElementById('service-border-color').value = service.borderColor || '#1F2937';
+    document.getElementById('service-price-color').value = service.priceColor || '#FFFFFF';
+    document.getElementById('service-icon').value = service.customIcon || '';
     document.getElementById('service-slug').value = service.id;
     
     modal.classList.remove('hidden');
@@ -216,13 +227,24 @@ class ServicesEditor {
       const description = document.getElementById('service-description').value.trim();
       const duration = parseInt(document.getElementById('service-duration').value);
       const price = parseFloat(document.getElementById('service-price').value) || null;
+      const borderColor = document.getElementById('service-border-color').value;
+      const priceColor = document.getElementById('service-price-color').value;
+      let customIcon = document.getElementById('service-icon').value.trim();
+      
+      // Automatyczne formatowanie SVG - wyciągnij zawartość z tagów <svg>
+      if (customIcon.includes('<svg')) {
+        const svgMatch = customIcon.match(/<svg[^>]*>(.*?)<\/svg>/s);
+        if (svgMatch) {
+          customIcon = svgMatch[1].trim();
+        }
+      }
       const slug = document.getElementById('service-slug').value.trim();
       
       if (!name || !duration || !slug) { this.app.events.emit('showToast', { message: 'Wypełnij wszystkie wymagane pola', type: 'error' }); return; }
-      if (duration < 15 || duration > 240) { this.app.events.emit('showToast', { message: 'Czas trwania musi być między 15 a 240 minut', type: 'error' }); return; }
+      if (duration < 5 || duration > 180) { this.app.events.emit('showToast', { message: 'Czas trwania musi być między 5 a 180 minut', type: 'error' }); return; }
       if (!/^[a-z0-9\\-]+$/.test(slug)) { this.app.events.emit('showToast', { message: 'Identyfikator może zawierać tylko małe litery, cyfry i myślniki', type: 'error' }); return; }
       
-      const serviceData = { name, description: description || null, duration, price, id: slug };
+      const serviceData = { name, description: description || null, duration, price, borderColor, priceColor, customIcon: customIcon || null, id: slug };
       
       if (serviceId && serviceId !== slug) {
         await firebaseService.deleteService(serviceId);

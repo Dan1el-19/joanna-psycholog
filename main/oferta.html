@@ -16,9 +16,6 @@
             <h2 class="font-display text-4xl md:text-5xl font-bold text-primary" data-aos="fade-up">
               Zakres Usług
             </h2>
-            <p class="mt-4 font-sans text-lg text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
-              Zapoznaj się z formami wsparcia, które oferuję, aby pomóc Ci w Twojej drodze.
-            </p>
           </div>
     
           <div id="services-container" class="grid gap-8">
@@ -82,35 +79,38 @@
           container.className = `grid gap-8 ${getGridClasses(services.length)}`;
           
           const servicesHtml = services.map((service, index) => {
-            const icon = serviceIcons[service.id] || serviceIcons.default;
+            const icon = service.customIcon || serviceIcons[service.id] || serviceIcons.default;
             const delay = 200 + (index * 100);
             const firstSessionPrice = service.price ? Math.round(service.price * 0.5) : null;
+            
+            const borderColor = service.borderColor || '#1F2937';
+            const priceColor = service.priceColor || '#FFFFFF';
             
             return `
               <div class="bg-surface p-6 sm:p-8 rounded-lg shadow-lg text-center transition-transform duration-300 hover:-translate-y-2 w-full" data-aos="fade-up" data-aos-delay="${delay}">
                 <div class="flex justify-center mb-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-accent">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12" style="color: ${borderColor};">
                     ${icon}
                   </svg>
                 </div>
-                <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2">${service.name}</h3>
+                <h3 class="font-display text-xl sm:text-2xl font-bold mb-2 service-title-wrap" style="color: ${borderColor};">${service.name}</h3>
                 <p class="font-sans text-secondary mb-4 text-sm sm:text-base">
-                  ${service.description || 'Profesjonalna pomoc psychologiczna dostosowana do Twoich potrzeb.'}
+                  ${service.description || ''}
                 </p>
                 ${service.price ? `
-                  <div class="bg-accent bg-opacity-10 p-3 rounded-lg">
+                  <div class="p-3 rounded-lg" style="background-color: ${borderColor};">
                     <div class="text-center">
-                      <span class="font-semibold text-surface text-base sm:text-lg block">${service.price} PLN / ${service.duration} min</span>
+                      <span class="font-semibold text-base sm:text-lg block" style="color: ${priceColor};">${service.price} PLN / ${service.duration} min</span>
                       ${firstSessionPrice ? `
-                        <span class="text-xs sm:text-sm text-white bg-green-600 px-2 py-1 rounded font-medium mt-1 inline-block">Pierwsze spotkanie: ${firstSessionPrice} PLN (50% taniej)</span>
+                        <span class="text-xs sm:text-sm px-2 py-1 rounded font-medium mt-1 inline-block" style="background-color: ${borderColor}; color: ${priceColor};">Pierwsze spotkanie: ${firstSessionPrice} PLN (50% taniej)</span>
                       ` : ''}
                     </div>
                   </div>
                 ` : `
-                  <div class="bg-accent bg-opacity-10 p-3 rounded-lg">
+                  <div class="p-3 rounded-lg" style="background-color: ${borderColor};">
                     <div class="text-center">
-                      <span class="font-semibold text-surface text-base sm:text-lg block">Czas trwania: ${service.duration} min</span>
-                      <span class="text-xs sm:text-sm text-gray-600 mt-1 inline-block">Skontaktuj się w celu ustalenia ceny</span>
+                      <span class="font-semibold text-base sm:text-lg block" style="color: ${priceColor};">Czas trwania: ${service.duration} min</span>
+                      <span class="text-xs sm:text-sm mt-1 inline-block" style="color: ${priceColor}; opacity: 0.8;">Skontaktuj się w celu ustalenia ceny</span>
                     </div>
                   </div>
                 `}
@@ -141,7 +141,7 @@
                   ${serviceIcons['terapia-indywidualna']}
                 </svg>
               </div>
-              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2">Terapia Indywidualna</h3>
+              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2 service-title-wrap">Terapia Indywidualna</h3>
               <p class="font-sans text-secondary mb-4 text-sm sm:text-base">
                 Indywidualne spotkania w bezpiecznej i poufnej atmosferze, skoncentrowane na Twoich osobistych celach i potrzebach.
               </p>
@@ -159,7 +159,7 @@
                   ${serviceIcons['terapia-par']}
                 </svg>
               </div>
-              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2">Terapia Par</h3>
+              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2 service-title-wrap">Terapia Par</h3>
               <p class="font-sans text-secondary mb-4 text-sm sm:text-base">
                 Wsparcie dla par pragnących poprawić komunikację, rozwiązać konflikty i odbudować wzajemne zrozumienie oraz bliskość.
               </p>
@@ -177,7 +177,7 @@
                   ${serviceIcons['terapia-rodzinna']}
                 </svg>
               </div>
-              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2">Terapia Rodzinna</h3>
+              <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-2 service-title-wrap">Terapia Rodzinna</h3>
               <p class="font-sans text-secondary mb-4 text-sm sm:text-base">
                 Wsparcie dla całych rodzin w rozwiązywaniu konfliktów, poprawie komunikacji i budowaniu silniejszych więzi rodzinnych.
               </p>

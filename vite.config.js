@@ -1,9 +1,25 @@
 import { resolve } from "path";
 import { defineConfig } from "vite";
 import tailwindcss from "@tailwindcss/vite";
+import htmlMinifier from "vite-plugin-html-minifier"; // Dodaj ten import
 
 export default defineConfig({
   plugins: [
+    htmlMinifier({ // Dodaj ten plugin
+      minify: true, // Włącz minifikację
+      // Opcje dla html-minifier (te same, co wcześniej omawialiśmy)
+      collapseWhitespace: true,
+      removeComments: true, // <-- TO JEST KLUCZOWE
+      removeRedundantAttributes: true,
+      useShortDoctype: true,
+      removeEmptyAttributes: true,
+      removeStyleLinkTypeAttributes: true,
+      keepClosingSlash: true,
+      minifyJS: true, // Minifikuje JS w tagach <script> w HTML
+      minifyCSS: true, // Minifikuje CSS w tagach <style> w HTML
+      // Jeśli masz komentarze warunkowe IE i chcesz je usunąć:
+      // removeConditionalComments: true,
+    }),
     // Twoja zaawansowana konfiguracja Tailwind CSS - zostaje bez zmian
     tailwindcss({
       content: [
@@ -77,15 +93,17 @@ export default defineConfig({
         "umow-wizyte": resolve(__dirname, "main/umow-wizyte.html"),
         kontakt: resolve(__dirname, "main/kontakt.html"),
         "polityka-prywatnosci": resolve(__dirname, "main/polityka-prywatnosci.html"),
-        
+
         // Kluczowy element:
         // Mamy tylko JEDEN plik dla całego panelu admina.
         // Wszystkie stare wpisy (admin-appointments, admin-schedule, etc.) zostały usunięte.
         admin: resolve(__dirname, "main/admin.html"),
-        
+
         // Strona do zarządzania rezerwacją
         "manage-reservation": resolve(__dirname, "src/manage-reservation.html"),
       },
     },
+    // Upewnij się, że ogólna minifikacja jest włączona
+    minify: 'terser', // Możesz też ustawić na true, ale terser daje więcej kontroli
   },
 });
