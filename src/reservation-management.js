@@ -61,11 +61,18 @@ class ReservationManagement {
           }
       });
       
-      // A separate listener for closing modals which might be outside the main container
+      // Enhanced listener for modal actions (including cancel-appointment in dialogs)
       document.body.addEventListener('click', (event) => {
-          const actionElement = event.target.closest('[data-action="close-modal"]');
-          if(actionElement) {
+          const actionElement = event.target.closest('[data-action]');
+          if (!actionElement) return;
+          
+          const action = actionElement.dataset.action;
+          
+          if (action === 'close-modal') {
               actionElement.closest('.dialog-container')?.remove();
+          } else if (action === 'cancel-appointment') {
+              event.preventDefault();
+              this.cancelAppointment();
           }
       });
   }

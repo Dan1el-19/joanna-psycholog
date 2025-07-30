@@ -9,10 +9,10 @@
   <body class="flex flex-col min-h-screen">
     <div id="header-container"></div>
 
-    <main class="py-16 md:py-24 flex-grow">
+    <main class="py-10 md:py-24 flex-grow">
       <div class="container mx-auto px-4">
         <div class="grid md:grid-cols-2 gap-12 items-center">
-          <div data-aos="fade-right">
+          <div data-aos="fade-right" class="hidden"> <!--Nieuzywane zdjecie-->
             <div class="bg-gray-200 w-full h-[500px] rounded-lg"></div>
           </div>
           <div
@@ -26,19 +26,28 @@
             >
               O mnie
             </h2>
-            <p class="mt-6 font-sans text-secondary text-lg">
-              Jestem psychologiem z pasji i wykształcenia, dedykowanym
-              wspieraniu osób w ich drodze do lepszego samopoczucia i
-              zrozumienia siebie. Moja praca opiera się na empatii, zaufaniu i
-              partnerskiej relacji.
-            </p>
-            <p class="mt-4 font-sans text-secondary text-lg">
-              Ukończyłam [nazwa uczelni] i od tamtej pory nieustannie podnoszę
-              swoje kwalifikacje, uczestnicząc w licznych kursach i szkoleniach
-              z zakresu [np. terapii poznawczo-behawioralnej, terapii
-              skoncentrowanej na rozwiązaniach]. Wierzę, że każdy człowiek ma w
-              sobie siłę do zmiany, a moją rolą jest pomóc ją odnaleźć.
-            </p>
+            <div class="mt-6 font-sans text-secondary text-lg grid gap-y-2">
+              <p>
+                Ukończyłam i zrobiłam praktyki w szkole terapeutycznej Akademia Liderów w Łodzi.
+              </p>
+              <p>
+                Otrzymałam tytuł: Specjalisty w zakresie terapii indywidualnej i terapii grupowej.
+              </p>
+               <p>
+                Jestem również absolwentką Uniwersytetu Łódzkiego na kierunku Marketing i Zarządzanie.
+               </p>
+               <p>
+                Pracuję holistycznie, korzystam z takich metod jak: terapia podświadomości, terapia krótkoterminowa, terapia behawioralna, NLP.
+               </p>
+            </div>
+            <div class="text-center py-15">
+                <a
+                  href="/dyplomy"
+                  class="bg-gray-800 text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-gray-800/80 transition-colors duration-300"
+                >
+                  Kwalifikacje
+                </a>
+              </div>
           </div>
         </div>
       </div>

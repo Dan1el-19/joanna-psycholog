@@ -66,6 +66,7 @@ export default defineConfig({
         const url = req.url;
         const routes = {
           '/o-mnie': '/main/o-mnie.html',
+          '/kwalifikacje': '/main/kwalifikacje.html',
           '/oferta': '/main/oferta.html',
           '/umow-wizyte': '/main/umow-wizyte.html',
           '/kontakt': '/main/kontakt.html',
@@ -89,6 +90,7 @@ export default defineConfig({
         // Definiujemy wszystkie strony, które FAKTYCZNIE istnieją
         main: resolve(__dirname, "index.html"),
         "o-mnie": resolve(__dirname, "main/o-mnie.html"),
+        kwalifikacje: resolve(__dirname, "main/kwalifikacje.html"),
         oferta: resolve(__dirname, "main/oferta.html"),
         "umow-wizyte": resolve(__dirname, "main/umow-wizyte.html"),
         kontakt: resolve(__dirname, "main/kontakt.html"),

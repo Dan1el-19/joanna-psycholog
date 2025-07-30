@@ -226,6 +226,10 @@ class AdminNavigation {
         const { default: slotBlockingInstance } = await import('./slot-blocking.js');
         app.register('slotBlocking', slotBlockingInstance);
         const blockingInterface = await slotBlockingInstance.renderBlockingInterface();
+        
+        // Pobierz informacje o wersji
+        const { VersionInfo } = await import('./version-info.js');
+        const versionInfo = await VersionInfo.getVersionInfo();
         content.innerHTML = `
             <div class="space-y-6">${blockingInterface}
                 <div class="bg-white shadow rounded-lg p-4 sm:p-6">
@@ -270,8 +274,11 @@ class AdminNavigation {
                         <div>
                             <h3 class="text-md font-medium text-gray-700 mb-2">Informacje o systemie</h3>
                             <div class="text-sm text-gray-600 space-y-1">
-                                <p>Wersja: 2.5.1 (Fixed)</p>
-                                <p>Ostatnia aktualizacja: ${new Date().toLocaleDateString('pl-PL')}</p>
+                                <p>Wersja: ${VersionInfo.formatVersionString(versionInfo)}</p>
+                                <p>Ostatni commit: ${VersionInfo.formatDateString(versionInfo)}</p>
+                                <p>Branch: ${versionInfo.branch || 'unknown'}</p>
+                                ${versionInfo.commitMessage ? `<p>Ostatnia zmiana: ${versionInfo.commitMessage}</p>` : ''}
+                                ${versionInfo.hasChanges ? '<p class="text-orange-600">⚠️ Niezapisane zmiany</p>' : ''}
                                 <p>Status Firebase: <span class="text-green-600">Połączony</span></p>
                             </div>
                         </div>

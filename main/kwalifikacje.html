@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kwalifikacje</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      /* Styles for diploma gallery */
+      .diploma-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      
+      .diploma-item {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        cursor: pointer;
+      }
+      
+      .diploma-item:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1);
+      }
+      
+      .diploma-image {
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+        transition: transform 0.3s ease;
+      }
+      
+      .diploma-item:hover .diploma-image {
+        transform: scale(1.05);
+      }
+      
+      .diploma-title {
+        padding: 1rem;
+        font-weight: 600;
+        color: var(--color-primary);
+        text-align: center;
+      }
+      
+      /* Modal styles */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.9);
+        animation: fadeIn 0.3s ease;
+      }
+      
+      .modal.active {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .modal-content {
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        border-radius: 8px;
+        animation: zoomIn 0.3s ease;
+      }
+      
+      .close {
+        position: absolute;
+        top: 20px;
+        right: 35px;
+        color: white;
+        font-size: 40px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: color 0.3s ease;
+      }
+      
+      .close:hover {
+        color: #ccc;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      
+      @keyframes zoomIn {
+        from { transform: scale(0.8); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      
+      .page-title {
+        text-align: center;
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--color-primary);
+        margin: 2rem 0;
+        font-family: var(--font-display);
+      }
+      
+      .page-description {
+        text-align: center;
+        font-size: 1.1rem;
+        color: var(--color-secondary);
+        max-width: 600px;
+        margin: 0 auto 3rem auto;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body class="flex flex-col min-h-screen">
+    <div id="header-container"></div>
+    <main class="flex-1">
+      <div class="container mx-auto px-4 py-8">
+        <h1 class="page-title">Moje Kwalifikacje</h1>
+        <p class="page-description">
+          Przedstawiam certyfikaty i dyplomy potwierdzające moje kwalifikacje zawodowe oraz ciągły rozwój w dziedzinie psychologii.
+        </p>
+        
+        <div class="diploma-gallery">
+          <div class="diploma-item">
+            <img src="/src/photos/praktyki.jpg" alt="Certyfikat praktyk" class="diploma-image">
+            <div class="diploma-title">Certyfikat Praktyk</div>
+          </div>
+          
+          <div class="diploma-item">
+            <img src="/src/photos/rok1.jpg" alt="Dyplom - Rok 1" class="diploma-image">
+            <div class="diploma-title">Dyplom - Pierwszy Rok</div>
+          </div>
+          
+          <div class="diploma-item">
+            <img src="/src/photos/rok2.jpg" alt="Dyplom - Rok 2" class="diploma-image">
+            <div class="diploma-title">Dyplom - Drugi Rok</div>
+          </div>
+          
+          <div class="diploma-item">
+            <img src="/src/photos/rok3.jpg" alt="Dyplom - Rok 3" class="diploma-image">
+            <div class="diploma-title">Dyplom - Trzeci Rok</div>
+          </div>
+          
+          <div class="diploma-item">
+            <img src="/src/photos/warsztaty.jpg" alt="Certyfikat warsztatów" class="diploma-image">
+            <div class="diploma-title">Certyfikat Warsztatów</div>
+          </div>
+        </div>
+      </div>
+    </main>
+    
+    <!-- Modal for enlarged images -->
+    <div id="imageModal" class="modal">
+      <span class="close">&times;</span>
+      <img class="modal-content" id="modalImage">
+    </div>
+    
+    <div id="footer-container"></div>
+    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/diploma-gallery.js"></script>
+  </body>
+</html>

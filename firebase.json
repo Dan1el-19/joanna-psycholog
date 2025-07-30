@@ -24,6 +24,7 @@
     ],
     "rewrites": [
       { "source": "/o-mnie", "destination": "/main/o-mnie.html" },
+      { "source": "/kwalifikacje", "destination": "/main/kwalifikacje.html" },
       { "source": "/oferta", "destination": "/main/oferta.html" },
       { "source": "/umow-wizyte", "destination": "/main/umow-wizyte.html" },
       { "source": "/kontakt", "destination": "/main/kontakt.html" },

@@ -106,21 +106,35 @@ class CalendarInterface {
     if (!calendarContainer || calendarContainer.dataset.eventsAttached) return;
     calendarContainer.dataset.eventsAttached = 'true';
 
-    calendarContainer.addEventListener('click', (event) => {
+    calendarContainer.addEventListener('click', async (event) => {
       const actionElement = event.target.closest('[data-action]');
       if (!actionElement) return;
 
+      event.preventDefault(); // Prevent any default behavior
+      
       const action = actionElement.dataset.action;
       const date = actionElement.dataset.date;
       const time = actionElement.dataset.time;
 
+      // Add visual feedback for button clicks
+      actionElement.style.opacity = '0.7';
+      setTimeout(() => {
+        actionElement.style.opacity = '';
+      }, 150);
+
       switch (action) {
-        case 'prev-month': this.changeMonth(-1); break;
-        case 'next-month': this.changeMonth(1); break;
+        case 'prev-month': await this.changeMonth(-1); break;
+        case 'next-month': await this.changeMonth(1); break;
         case 'change-date': this.showCalendarView(); break;
-        case 'refresh-calendar': this.refreshCalendar(); break;
-        case 'refresh-time-slots': this.refreshTimeSlots(); break;
-        case 'reload-slots': this.loadAvailableSlots(); break;
+        case 'refresh-calendar': 
+          console.log('Refreshing calendar...');
+          await this.refreshCalendar(); 
+          break;
+        case 'refresh-time-slots': 
+          console.log('Refreshing time slots...');
+          await this.refreshTimeSlots(); 
+          break;
+        case 'reload-slots': await this.loadAvailableSlots(); break;
         case 'select-date': this.selectDate(date); break;
         case 'select-time': this.selectTime(time); break;
       }

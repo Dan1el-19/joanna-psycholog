@@ -45,3 +45,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Auto-generated version files
+src/generated-version-info.js
+public/version-info.html

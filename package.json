@@ -5,13 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "prebuild": "node scripts/generate-version-info.js",
     "build": "vite build",
     "build:app": "npm run build",
     "build:functions": "cd functions && npm install && npm run build && cd ..",
     "deploy:firebase": "firebase deploy",
     "deploy:all": "npm run build:app && npm run build:functions && npm run deploy:firebase",
+    "deploy:1": "npm run build && firebase deploy --only hosting",
     "preview": "vite preview",
-    "deploy": "firebase deploy"
+    "deploy": "firebase deploy",
+    "version:generate": "node scripts/generate-version-info.js",
+    "version:show": "node -e \"console.log('Current version info:'); const info = require('./src/generated-version-info.js'); console.log(JSON.stringify(info.VERSION_INFO, null, 2));\""
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
