@@ -103,6 +103,9 @@ export default defineConfig({
 
         // Strona do zarządzania rezerwacją
         "manage-reservation": resolve(__dirname, "src/manage-reservation.html"),
+        
+        // Strona błędu 404
+        "404": resolve(__dirname, "main/404.html"),
       },
     },
     // Upewnij się, że ogólna minifikacja jest włączona

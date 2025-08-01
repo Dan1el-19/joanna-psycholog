@@ -39,8 +39,11 @@
       {
         "source": "/schedule-admin{,/**}",
         "destination": "/main/admin.html"
+      },
+      {
+        "source": "**",
+        "destination": "/main/404.html"
       }
-      
 
     ]
   },
