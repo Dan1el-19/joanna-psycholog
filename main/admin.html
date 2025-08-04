@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel Administracyjny - Joanna Rudzińska Psycholog</title>
+    
+    <!-- 
+      Poprawiamy ścieżkę do pliku CSS. Vite podczas budowania aplikacji
+      stworzy plik style.css w głównym katalogu 'dist', więc ścieżka
+      bezwzględna '/style.css' jest teraz poprawna.
+    -->
+    <link rel="stylesheet" href="/src/style.css" />
+    
+    <style>
+      /* Proste style dla wskaźnika ładowania, żeby działały zanim załaduje się główny CSS */
+      .app-loading-indicator {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        flex-direction: column;
+        background-color: #f9fafb;
+        font-family: sans-serif;
+      }
+      .app-loading-indicator .spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+      }
+      .app-loading-indicator p {
+        margin-top: 16px;
+        color: #6b7280;
+      }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <!-- 
+      Kontener, w którym nasza aplikacja JavaScript zbuduje cały interfejs.
+      Teraz zawiera ulepszony wskaźnik ładowania.
+    -->
+    <div id="admin-panel">
+        <div class="app-loading-indicator">
+            <div class="spinner"></div>
+            <p>Inicjalizacja panelu administracyjnego...</p>
+        </div>
+    </div>
+
+    <!-- 
+      Zmieniamy ścieżkę do skryptu na '/src/main.js'. Vite podczas budowania
+      poprawnie przetworzy ten plik i podmieni ścieżkę na właściwą w finalnym HTML-u.
+    -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

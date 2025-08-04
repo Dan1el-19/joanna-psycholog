@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Strona nie została znaleziona - Joanna Rudzińska-Łodyga</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <style>
+      .floating-animation {
+        animation: float 6s ease-in-out infinite;
+      }
+      
+      .floating-animation:nth-child(2) {
+        animation-delay: 2s;
+      }
+      
+      .floating-animation:nth-child(3) {
+        animation-delay: 4s;
+      }
+      
+      @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+      }
+      
+      .fade-in {
+        animation: fadeIn 1s ease-in;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      .pulse-gentle {
+        animation: pulseGentle 3s ease-in-out infinite;
+      }
+      
+      @keyframes pulseGentle {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+      }
+    </style>
+  </head>
+  <body class="flex flex-col min-h-screen">
+    <div id="header-container"></div>
+
+    <main class="flex-grow flex items-center justify-center py-12 px-4">
+      <div class="text-center max-w-2xl mx-auto">
+        <!-- Animowane ikony psychologiczne -->
+        <div class="mb-8 flex justify-center space-x-8">
+          <div class="floating-animation">
+            <div class="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
+              <svg class="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="floating-animation">
+            <div class="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center">
+              <svg class="w-8 h-8 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="floating-animation">
+            <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+              <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Główny numer 404 -->
+        <div class="fade-in mb-6">
+          <h1 class="font-display text-8xl md:text-9xl font-bold text-primary/20 leading-none">
+            404
+          </h1>
+        </div>
+
+        <!-- Tytuł i opis -->
+        <div class="fade-in mb-8" style="animation-delay: 0.3s;">
+          <h2 class="font-display text-3xl md:text-4xl font-bold text-primary mb-4">
+            Zagubiliśmy się w labiryncie myśli
+          </h2>
+          <p class="text-lg text-secondary leading-relaxed mb-2">
+            Strona, której szukasz, nie istnieje lub została przeniesiona.
+          </p>
+          <p class="text-base text-secondary/80">
+            Czasem w życiu tracimy drogę, ale zawsze możemy znaleźć nową ścieżkę.
+          </p>
+        </div>
+
+        <!-- Przyciski nawigacyjne -->
+        <div class="fade-in space-y-4 md:space-y-0 md:space-x-4 md:flex md:justify-center" style="animation-delay: 0.6s;">
+          <a
+            href="/"
+            class="inline-block bg-accent text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-accent/90 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+          >
+            🏠 Wróć do strony głównej
+          </a>
+          <a
+            href="/oferta"
+            class="inline-block bg-primary text-white font-bold py-3 px-8 rounded-lg text-lg hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+          >
+            💼 Zobacz ofertę
+          </a>
+        </div>
+
+        <!-- Dodatkowe linki pomocne -->
+        <div class="fade-in mt-12 pt-8 border-t border-gray-200" style="animation-delay: 0.9s;">
+          <p class="text-sm text-secondary/70 mb-4">Może szukasz jednej z tych stron?</p>
+          <div class="flex flex-wrap justify-center gap-4 text-sm">
+            <a href="/o-mnie" class="text-accent hover:text-accent/80 transition-colors">O mnie</a>
+            <span class="text-gray-300">•</span>
+            <a href="/kwalifikacje" class="text-accent hover:text-accent/80 transition-colors">Kwalifikacje</a>
+            <span class="text-gray-300">•</span>
+            <a href="/umow-wizyte" class="text-accent hover:text-accent/80 transition-colors">Umów wizytę</a>
+            <span class="text-gray-300">•</span>
+            <a href="/kontakt" class="text-accent hover:text-accent/80 transition-colors">Kontakt</a>
+          </div>
+        </div>
+
+        <!-- Cytat motywacyjny -->
+        <div class="fade-in mt-12 p-6 bg-background rounded-lg border-l-4 border-accent" style="animation-delay: 1.2s;">
+          <blockquote class="text-secondary italic">
+            "Nie ma błędów w życiu, są tylko lekcje do nauczenia się."
+          </blockquote>
+          <cite class="text-sm text-secondary/70 mt-2 block">- Mądrość psychologiczna</cite>
+        </div>
+      </div>
+    </main>
+
+    <div id="footer-container"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is admin
+    function isAdmin() {
+      // Check if user is authenticated and not anonymous
+      return request.auth != null && 
+             request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Helper function to check if user is authenticated (anonymous or admin)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+
+    // KOLEKCJA "mail" - Zawsze zablokowana dla klienta
+    match /mail/{emailId} {
+      // Only Cloud Functions can write emails
+      allow read, write: if false;
+    }
+
+    // KOLEKCJA "appointments"
+    match /appointments/{appointmentId} {
+      // Anonymous users can create appointments (public form)
+      allow create: if isAuthenticated();
+      
+      // Anonymous users can read appointments for calendar availability (limited fields)
+      // Admins can read all appointment details
+      allow read, list: if isAuthenticated();
+      
+      // Only admins can update appointments
+      allow update: if isAdmin();
+
+      // No deletion allowed
+      allow delete: if false;
+    }
+
+    // KOLEKCJA "adminUsers" - konfiguracja użytkowników administratorów
+    match /adminUsers/{userId} {
+      // Only admins can manage admin users
+      allow read, write: if isAdmin();
+    }
+
+    // KOLEKCJA "scheduleTemplates" - szablony grafików
+    match /scheduleTemplates/{templateId} {
+      // Anyone can read templates for calendar generation
+      allow read: if isAuthenticated();
+      // Only admins can write templates
+      allow write: if isAdmin();
+    }
+
+    // KOLEKCJA "templateAssignments" - przypisania szablonów do miesięcy
+    match /templateAssignments/{assignmentId} {
+      // Anyone can read template assignments for calendar availability
+      allow read: if isAuthenticated();
+      // Only admins can write template assignments
+      allow write: if isAdmin();
+    }
+
+    // KOLEKCJA "monthlySchedules" - grafiki miesięczne
+    match /monthlySchedules/{scheduleId} {
+      // Anyone can read schedules for availability checking
+      allow read: if isAuthenticated();
+      // Only admins can write schedules
+      allow write: if isAdmin();
+    }
+
+    // KOLEKCJA "blockedSlots" - zablokowane terminy
+    match /blockedSlots/{blockId} {
+      // Anyone can read blocked slots for availability checking
+      allow read: if isAuthenticated();
+      // Only admins can write blocked slots
+      allow write: if isAdmin();
+    }
+
+    // KOLEKCJA "reservationTokens" - tokeny zarządzania rezerwacją
+    match /reservationTokens/{tokenId} {
+      // Authenticated users can read tokens for validation
+      allow read: if isAuthenticated();
+      // Only Cloud Functions can write tokens
+      allow write: if false;
+    }
+
+    // KOLEKCJA "temporaryBlocks" - tymczasowe blokady terminów
+    match /temporaryBlocks/{blockId} {
+      // Authenticated users can create/read/update/delete temporary blocks
+      // This allows the appointment form to temporarily hold slots
+      allow read, write: if isAuthenticated();
+    }
+
+    // KOLEKCJA "feedback" - opinie klientów
+    match /feedback/{feedbackId} {
+      // Anonymous users can create feedback
+      allow create: if isAuthenticated();
+      // Only admins can read and update feedback
+      allow read, update: if isAdmin();
+      // No deletion allowed
+      allow delete: if false;
+    }
+
+    // KOLEKCJA "adminSessions" - sesje administratorów (opcjonalne)
+    match /adminSessions/{sessionId} {
+      // Only admins can manage their own sessions
+      allow read, write: if isAdmin() && request.auth.uid == resource.data.userId;
+    }
+
+    // KOLEKCJA "services" - dostępne usługi/produkty
+    match /services/{serviceId} {
+      // Anyone can read services for public form and calendar
+      allow read: if isAuthenticated();
+      // Only admins can write services
+      allow write: if isAdmin();
+    }
+
+    // KOLEKCJA "contactMessages" - wiadomości z formularza kontaktowego
+    match /contactMessages/{messageId} {
+      // Anyone can create contact messages (public contact form)
+      allow create: if true;
+      // Only admins can read contact messages
+      allow read: if isAdmin();
+      // Only Cloud Functions can update messages (to mark as processed)
+      allow update: if false;
+      // No deletion allowed
+      allow delete: if false;
+    }
+  }
+}

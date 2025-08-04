@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zarządzanie rezerwacją - Joanna Rudzińska Psycholog</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="flex flex-col min-h-screen">
+    <div id="header-container"></div>
+
+    <main class="flex-grow">
+      <section class="bg-background py-16 md:py-24">
+        <div class="container mx-auto px-4">
+          
+          <div class="text-center mb-12">
+            <h2 class="font-display text-4xl md:text-5xl font-bold text-primary" data-aos="fade-up">
+              Zarządzanie rezerwacją
+            </h2>
+            <p class="mt-4 font-sans text-lg text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+              Sprawdź szczegóły swojej wizyty, zmień termin lub anuluj rezerwację.
+            </p>
+          </div>
+
+          <div class="max-w-4xl mx-auto">
+            <div id="reservation-content" class="bg-surface p-8 rounded-lg shadow-lg">
+              <div class="text-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-accent mx-auto"></div>
+                <p class="mt-2 text-gray-600">Ładowanie szczegółów rezerwacji...</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+    
+    <div id="footer-container"></div>
+    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/reservation-management.js"></script>
+  </body>
+</html>

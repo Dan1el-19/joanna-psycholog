@@ -1,0 +1,60 @@
+{
+  "hosting": {
+    "site": "joanna-psycholog",
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://joanna-psycholog.firebaseapp.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://firebasestorage.googleapis.com; connect-src 'self' https://firestore.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://joanna-psycholog-default-rtdb.europe-west1.firebasedatabase.app wss://s-usc1c-nss-2030.firebaseio.com https://europe-central2-joanna-psycholog.cloudfunctions.net; frame-src 'self' https://joanna-psycholog.firebaseapp.com; object-src 'none'; base-uri 'self'; form-action 'self';"
+          },
+          { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+          { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(), payment=()" }
+        ]
+      }
+    ],
+    "rewrites": [
+      { "source": "/o-mnie", "destination": "/main/o-mnie.html" },
+      { "source": "/kwalifikacje", "destination": "/main/kwalifikacje.html" },
+      { "source": "/oferta", "destination": "/main/oferta.html" },
+      { "source": "/umow-wizyte", "destination": "/main/umow-wizyte.html" },
+      { "source": "/kontakt", "destination": "/main/kontakt.html" },
+      { "source": "/polityka-prywatnosci", "destination": "/main/polityka-prywatnosci.html" },
+      { "source": "/manage-reservation/**", "destination": "/src/manage-reservation.html" },
+      
+      
+      {
+        "source": "/admin{,/**}",
+        "destination": "/main/admin.html"
+      },
+      {
+        "source": "/schedule-admin{,/**}",
+        "destination": "/main/admin.html"
+      },
+      {
+        "source": "**",
+        "destination": "/main/404.html"
+      }
+
+    ]
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs22"
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "europe-central2",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

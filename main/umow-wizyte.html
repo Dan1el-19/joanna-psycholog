@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Umów wizytę</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="flex flex-col min-h-screen">
+    <div id="header-container"></div>
+
+    <main class="flex-grow">
+      <section class="bg-background py-8 sm:py-12 md:py-16 lg:py-24">
+        <div class="container mx-auto px-4">
+          
+          <div class="text-center mb-8 sm:mb-12">
+            <h2 class="font-display text-3xl sm:text-4xl md:text-5xl font-bold text-primary" data-aos="fade-up">
+              Umów wizytę
+            </h2>
+            <p class="mt-4 font-sans text-base sm:text-lg text-secondary max-w-2xl mx-auto" data-aos="fade-up" data-aos-delay="100">
+              Zrób pierwszy krok w stronę zmiany. Skontaktuj się ze mną, aby umówić wizytę.
+            </p>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
+            
+            <div data-aos="fade-right">
+              <div class="bg-surface p-4 sm:p-6 lg:p-8 rounded-lg shadow-lg">
+                <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-4 sm:mb-6">Formularz kontaktowy</h3>
+                
+                <form class="space-y-4 sm:space-y-6">
+                  <div>
+                    <label for="name" class="block text-sm font-medium text-primary mb-2">Imię i nazwisko</label>
+                    <input type="text" id="name" name="name" required 
+                           class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
+                  </div>
+                  
+                  <div>
+                    <label for="email" class="block text-sm font-medium text-primary mb-2">Adres e-mail</label>
+                    <input type="email" id="email" name="email" required 
+                           class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
+                  </div>
+                  
+                  
+                  <div>
+                    <label for="service" class="block text-sm font-medium text-primary mb-2">Rodzaj usługi</label>
+                    <select id="service" name="service" required 
+                            class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
+                      <option value="">Ładowanie usług...</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label for="preferred-date" class="block text-sm font-medium text-primary mb-2">Preferowany termin</label>
+                    <input type="date" id="preferred-date" name="preferred-date" 
+                           class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
+                  </div>
+                  
+                  <div>
+                    <label for="preferred-time" class="block text-sm font-medium text-primary mb-2">Preferowana godzina</label>
+                    <select id="preferred-time" name="preferred-time" 
+                            class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-sm sm:text-base">
+                      <option value="">Wybierz godzinę</option>
+                      <option value="09:00">09:00</option>
+                      <option value="10:00">10:00</option>
+                      <option value="11:00">11:00</option>
+                      <option value="12:00">12:00</option>
+                      <option value="13:00">13:00</option>
+                      <option value="14:00">14:00</option>
+                      <option value="15:00">15:00</option>
+                      <option value="16:00">16:00</option>
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label for="message" class="block text-sm font-medium text-primary mb-2">Dodatkowe informacje</label>
+                    <textarea id="message" name="message" rows="4" 
+                              placeholder="Opisz krótko, z czym chciałbyś/chciałabyś pracować lub zadaj pytanie..."
+                              class="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent resize-none text-sm sm:text-base"></textarea>
+                  </div>
+
+                  <div class="flex items-start space-x-3">
+                    <input type="checkbox" id="privacy-policy" name="privacy-policy" required 
+                           class="mt-1 h-4 w-4 text-accent focus:ring-accent border-gray-300 rounded">
+                    <label for="privacy-policy" class="text-sm text-secondary">
+                      Akceptuję <a href="/polityka-prywatnosci" class="text-accent hover:text-accent/80 underline" target="_blank">politykę prywatności</a> i wyrażam zgodę na przetwarzanie moich danych osobowych.
+                    </label>
+                  </div>
+                  
+                  <button type="submit" 
+                          class="w-full bg-accent text-white font-bold py-3 px-6 sm:px-8 rounded-lg text-base sm:text-lg hover:bg-accent/80 transition-colors duration-300">
+                    Wyślij zapytanie
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div data-aos="fade-left" data-aos-delay="200">
+              <div class="bg-surface p-4 sm:p-6 lg:p-8 rounded-lg shadow-lg mb-6 sm:mb-8">
+                <h3 class="font-display text-xl sm:text-2xl font-bold text-primary mb-4">Informacje praktyczne</h3>
+                
+                <div class="space-y-6">
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Czas spotkania</h4>
+                      <p id="service-durations" class="text-secondary">Ładowanie informacji...</p>
+                    </div>
+                  </div>
+                  
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12s-1.536.219-2.121.659c-1.172.879-1.172 2.303 0 3.182l.879.659Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Cena</h4>
+                      <p id="service-prices" class="text-secondary">
+                        Ładowanie informacji...
+                      </p>
+                    </div>
+                  </div>
+                  <div class="flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-accent mt-1 mr-3 flex-shrink-0">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-1.621-1.621A3 3 0 0 1 14.25 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25A2.25 2.25 0 0 1 5.25 3h9.75a2.25 2.25 0 0 1 2.25 2.25Z" />
+                    </svg>
+                    <div>
+                      <h4 class="font-bold text-primary">Spotkanie online</h4>
+                      <p class="text-secondary">Odbywa się przez platformę<br>Microsoft Teams</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-accent/10 p-4 sm:p-6 rounded-lg">
+                <h4 class="font-bold text-primary mb-3">Ważne informacje</h4>
+                <ul class="text-secondary space-y-2 text-sm">
+                  <li>• Odpowiem na Twoje zapytanie w ciągu 24 godzin</li>
+                  <li>• Możliwość odwołania wizyty do 24h przed spotkaniem</li>
+                  <li>• Wszystkie informacje są objęte tajemnicą zawodową</li>
+                </ul>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+    
+    <div id="footer-container"></div>
+    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/calendar-interface.js"></script>
+    <script type="module" src="/src/appointment.js"></script>
+    <script type="module">
+      import { firebaseService } from '/src/firebase-service.js';
+      import { publicAuth } from '/src/public-auth.js';
+      
+      async function loadServicesIntoForm() {
+        try {
+          // Ensure user is authenticated (anonymously) before accessing services
+          await publicAuth.ensureAuthenticated();
+          
+          const services = await firebaseService.getServices();
+          const serviceSelect = document.getElementById('service');
+          const serviceDurations = document.getElementById('service-durations');
+          const servicePrices = document.getElementById('service-prices');
+          
+          if (services.length === 0) {
+            // Fallback to hardcoded services if none found in database
+            serviceSelect.innerHTML = `
+              <option value="">Wybierz rodzaj usługi</option>
+              <option value="terapia-indywidualna">Terapia Indywidualna (150 PLN / 50 min)</option>
+              <option value="terapia-par">Terapia Par (220 PLN / 90 min)</option>
+              <option value="terapia-rodzinna">Terapia Rodzinna (230 PLN / 90 min)</option>
+            `;
+            
+            serviceDurations.innerHTML = 'Terapia: <br> Indywidualna: 50 min<br>Par/Rodzinna: 90 min';
+            servicePrices.innerHTML = `
+              150 PLN - Terapia Indywidualna<br>
+              220 PLN - Terapia Par<br>
+              230 PLN - Terapia Rodzinna<br>
+              <span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>
+            `;
+            return;
+          }
+          
+          // Populate service select with dynamic services
+          const optionsHtml = services.map(service => {
+            const priceText = service.price ? `${service.price} PLN / ${service.duration} min` : `${service.duration} min`;
+            return `<option value="${service.id}">${service.name} (${priceText})</option>`;
+          }).join('');
+          
+          serviceSelect.innerHTML = `
+            <option value="">Wybierz rodzaj usługi</option>
+            ${optionsHtml}
+          `;
+          
+          // Update duration information
+          const durationList = services.map(service => `${service.name}: ${service.duration} min`).join('<br>');
+          serviceDurations.innerHTML = durationList || 'Skontaktuj się w celu uzyskania informacji';
+          
+          // Update pricing information
+          const priceList = services.map(service => {
+            if (service.price) {
+              return `${service.price} PLN - ${service.name}`;
+            } else {
+              return `${service.name} - cena do uzgodnienia`;
+            }
+          }).join('<br>');
+          
+          const hasPrice = services.some(service => service.price);
+          servicePrices.innerHTML = `
+            ${priceList}
+            ${hasPrice ? '<br><span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>' : ''}
+          `;
+          
+        } catch (error) {
+          console.error('Error loading services:', error);
+          
+          // Fallback to hardcoded services on error
+          const serviceSelect = document.getElementById('service');
+          const serviceDurations = document.getElementById('service-durations');
+          const servicePrices = document.getElementById('service-prices');
+          
+          serviceSelect.innerHTML = `
+            <option value="">Wybierz rodzaj usługi</option>
+            <option value="terapia-indywidualna">Terapia Indywidualna (150 PLN / 50 min)</option>
+            <option value="terapia-par">Terapia Par (220 PLN / 90 min)</option>
+            <option value="terapia-rodzinna">Terapia Rodzinna (230 PLN / 90 min)</option>
+          `;
+          
+          serviceDurations.innerHTML = 'Terapia: <br> Indywidualna: 50 min<br>Par/Rodzinna: 90 min';
+          servicePrices.innerHTML = `
+            150 PLN - Terapia Indywidualna<br>
+            220 PLN - Terapia Par<br>
+            230 PLN - Terapia Rodzinna<br>
+            <span class="text-green-600 font-medium text-sm">Pierwsze spotkanie 50% taniej!</span>
+          `;
+        }
+      }
+      
+      // Load services when page loads
+      document.addEventListener('DOMContentLoaded', loadServicesIntoForm);
+    </script>
+  </body>
+</html>
