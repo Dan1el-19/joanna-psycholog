@@ -32,11 +32,12 @@ class ContactForm {
     
     // Show loading state
     submitButton.disabled = true;
+    submitButton.classList.add('opacity-75', 'cursor-not-allowed');
     submitButton.innerHTML = `
-      <svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
       </svg>
-      Wysyłanie...
+      <span class="text-sm sm:text-base">Wysyłanie...</span>
     `;
     
     try {
@@ -90,6 +91,7 @@ class ContactForm {
     } finally {
       // Restore button
       submitButton.disabled = false;
+      submitButton.classList.remove('opacity-75', 'cursor-not-allowed');
       submitButton.innerHTML = originalText;
     }
   }
@@ -99,27 +101,38 @@ class ContactForm {
     document.querySelectorAll('.contact-toast').forEach(toast => toast.remove());
     
     const toast = document.createElement('div');
-    toast.className = `contact-toast fixed top-5 right-5 p-4 rounded-lg shadow-lg z-50 max-w-md ${
-      type === 'success' ? 'bg-green-100 border border-green-200 text-green-800' :
-      type === 'error' ? 'bg-red-100 border border-red-200 text-red-800' :
-      'bg-blue-100 border border-blue-200 text-blue-800'
+    toast.className = `contact-toast fixed top-4 right-4 p-3 sm:p-4 rounded-lg shadow-lg z-50 max-w-xs sm:max-w-md mx-4 sm:mx-0 ${
+      type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' :
+      type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' :
+      'bg-blue-50 border border-blue-200 text-blue-800'
     }`;
     
+    // Add slide-in animation
+    toast.style.cssText = `
+      position: fixed !important;
+      top: 1rem !important;
+      right: 1rem !important;
+      z-index: 9999 !important;
+      transform: translateX(100%);
+      transition: transform 0.3s ease-out;
+    `;
+    
     toast.innerHTML = `
-      <div class="flex items-start">
+      <div class="flex items-start space-x-3">
         <div class="flex-shrink-0">
           ${type === 'success' ? 
-            '<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' :
+            '<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>' :
             type === 'error' ?
-            '<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>' :
+            '<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>' :
             '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
           }
         </div>
-        <div class="ml-3 flex-1">
-          <p class="text-sm font-medium">${message}</p>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium leading-5">${message}</p>
         </div>
-        <div class="ml-4 flex-shrink-0">
-          <button onclick="this.closest('.contact-toast').remove()" class="inline-flex text-gray-400 hover:text-gray-600">
+        <div class="flex-shrink-0">
+          <button onclick="this.closest('.contact-toast').remove()" class="inline-flex text-gray-400 hover:text-gray-600 transition-colors">
+            <span class="sr-only">Zamknij</span>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
@@ -130,12 +143,22 @@ class ContactForm {
     
     document.body.appendChild(toast);
     
-    // Auto remove after 6 seconds
+    // Trigger slide-in animation
+    requestAnimationFrame(() => {
+      toast.style.transform = 'translateX(0)';
+    });
+    
+    // Auto remove after 7 seconds with slide-out animation
     setTimeout(() => {
       if (toast.parentNode) {
-        toast.remove();
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.remove();
+          }
+        }, 300);
       }
-    }, 6000);
+    }, 7000);
   }
 }
 

@@ -29,9 +29,13 @@ class CalendarInterface {
   }
 
   async setup() {
-    await publicAuth.ensureAuthenticated();
-    this.createCalendarInterface();
-    this.loadAvailableSlots();
+    try {
+      await publicAuth.ensureAuthenticated();
+      this.createCalendarInterface();
+      await this.loadAvailableSlots();
+    } catch (error) {
+      console.error('Error during calendar setup:', error);
+    }
   }
 
   createCalendarInterface() {
@@ -75,12 +79,7 @@ class CalendarInterface {
           <div id="time-slots" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 mb-4"></div>
           <div class="flex flex-wrap gap-2 items-center">
             <button type="button" data-action="change-date" class="text-sm text-blue-600 hover:text-blue-800">← Wybierz inną datę</button>
-            <button type="button" data-action="refresh-time-slots" class="text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded hover:bg-gray-200 transition-colors">🔄 Odśwież godziny</button>
           </div>
-        </div>
-        <div class="mt-4 text-center">
-          <button type="button" data-action="refresh-calendar" class="text-sm bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition-colors">🔄 Odśwież kalendarz</button>
-          <p class="text-xs text-gray-500 mt-1">Kliknij aby odświeżyć dostępne terminy</p>
         </div>
       </div>
     `;
@@ -110,7 +109,8 @@ class CalendarInterface {
       const actionElement = event.target.closest('[data-action]');
       if (!actionElement) return;
 
-      event.preventDefault(); // Prevent any default behavior
+      event.preventDefault();
+      event.stopPropagation();
       
       const action = actionElement.dataset.action;
       const date = actionElement.dataset.date;
@@ -122,21 +122,17 @@ class CalendarInterface {
         actionElement.style.opacity = '';
       }, 150);
 
-      switch (action) {
-        case 'prev-month': await this.changeMonth(-1); break;
-        case 'next-month': await this.changeMonth(1); break;
-        case 'change-date': this.showCalendarView(); break;
-        case 'refresh-calendar': 
-          console.log('Refreshing calendar...');
-          await this.refreshCalendar(); 
-          break;
-        case 'refresh-time-slots': 
-          console.log('Refreshing time slots...');
-          await this.refreshTimeSlots(); 
-          break;
-        case 'reload-slots': await this.loadAvailableSlots(); break;
-        case 'select-date': this.selectDate(date); break;
-        case 'select-time': this.selectTime(time); break;
+      try {
+        switch (action) {
+          case 'prev-month': await this.changeMonth(-1); break;
+          case 'next-month': await this.changeMonth(1); break;
+          case 'change-date': this.showCalendarView(); break;
+          case 'reload-slots': await this.loadAvailableSlots(); break;
+          case 'select-date': this.selectDate(date); break;
+          case 'select-time': this.selectTime(time); break;
+        }
+      } catch (error) {
+        console.error('Error handling action:', action, error);
       }
     });
   }
@@ -335,28 +331,9 @@ class CalendarInterface {
     return new Date(year, month, 0).getDate();
   }
 
-  async refreshCalendar() {
-    this.slotsCache.clear();
-    await this.loadAvailableSlots();
-  }
-
   async onAppointmentMade() {
     this.slotsCache.clear();
     await this.loadAvailableSlots();
-  }
-
-  async refreshTimeSlots() {
-    if (!this.selectedDate) return;
-    const timeSlotsContainer = document.getElementById('time-slots');
-    try {
-      if (timeSlotsContainer) timeSlotsContainer.innerHTML = `<div class="col-span-full text-center py-4"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mx-auto"></div><p class="mt-2 text-xs text-gray-600">Odświeżanie...</p></div>`;
-      this.slotsCache.delete(`${this.currentYear}-${this.currentMonth}`);
-      await this.loadAvailableSlots();
-      this.selectDate(this.selectedDate);
-    } catch (error) {
-      console.error('Error refreshing time slots:', error);
-      if (timeSlotsContainer) timeSlotsContainer.innerHTML = `<div class="col-span-full text-center py-4 text-red-600"><p class="text-xs">Błąd podczas odświeżania. Spróbuj ponownie.</p></div>`;
-    }
   }
 }
 
