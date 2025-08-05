@@ -49,3 +49,6 @@ Thumbs.db
 # Auto-generated version files
 src/generated-version-info.js
 public/version-info.html
+
+#rovodev
+acli.exe
