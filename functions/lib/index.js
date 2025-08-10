@@ -4,7 +4,7 @@
  * VERSION 2.1 - Complete Overhaul with Professional Email Templates for ALL functions
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAnonymousUsers = exports.deleteCollection = exports.dailyMaintenanceCleanup = exports.sendContactFormEmail = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = void 0;
+exports.deleteAnonymousUsers = exports.deleteCollection = exports.dailyMaintenanceCleanup = exports.sendContactFormEmail = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = exports.sendConfirmEmail = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
@@ -14,6 +14,53 @@ const auth_1 = require("firebase-admin/auth");
 // Initialize Firebase Admin
 (0, app_1.initializeApp)();
 const db = (0, firestore_2.getFirestore)();
+// --- Confirm Appointment Email Trigger ---
+exports.sendConfirmEmail = (0, firestore_1.onDocumentUpdated)({
+    document: 'appointments/{appointmentId}',
+    region: 'europe-central2'
+}, async (event) => {
+    var _a, _b, _c;
+    try {
+        const beforeData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.before.data();
+        const afterData = (_b = event.data) === null || _b === void 0 ? void 0 : _b.after.data();
+        if (!beforeData || !afterData)
+            return;
+        // Only trigger if status changed from pending to confirmed and not already sent
+        if (beforeData.status === 'pending' &&
+            afterData.status === 'confirmed' &&
+            !afterData.confirmEmailSent) {
+            const serviceData = await getServiceData(afterData.service);
+            const confirmContent = `
+          <h2>Potwierdzenie wizyty</h2>
+          <p>Dzień dobry ${afterData.name},</p>
+          <p>Twoja wizyta została potwierdzona.</p>
+          <div class="section section-green">
+            <h3>Szczegóły wizyty</h3>
+            <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service}</p>
+            <p><strong>Data:</strong> ${afterData.confirmedDate}</p>
+            <p><strong>Godzina:</strong> ${afterData.confirmedTime}</p>
+          </div>
+          <p>Do zobaczenia!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
+        `;
+            const clientEmailDoc = {
+                to: afterData.email,
+                message: {
+                    subject: 'Potwierdzenie wizyty - My Reflection',
+                    html: generateEmailHTML('Potwierdzenie wizyty', 'Twoja wizyta została potwierdzona.', confirmContent)
+                }
+            };
+            await db.collection('mail').add(clientEmailDoc);
+            await ((_c = event.data) === null || _c === void 0 ? void 0 : _c.after.ref.update({
+                confirmEmailSent: true,
+                confirmEmailSentAt: firestore_2.FieldValue.serverTimestamp()
+            }));
+            console.log('Confirmation email sent for', event.params.appointmentId);
+        }
+    }
+    catch (error) {
+        console.error('Error sending confirmation email:', error);
+    }
+});
 // ##################################################################
 // # NEW PROFESSIONAL EMAIL TEMPLATE
 // ##################################################################
@@ -380,23 +427,24 @@ exports.sendRescheduleEmail = (0, firestore_1.onDocumentUpdated)({
             const newDate = afterData.preferredDate || afterData.confirmedDate;
             const newTime = afterData.preferredTime || afterData.confirmedTime;
             const serviceData = await getServiceData(afterData.service);
+            const isPendingAfter = afterData.status === 'pending';
             const rescheduleContent = `
-            <h2>Zmiana terminu wizyty</h2>
-            <p>Dzień dobry ${afterData.name},</p>
-            <p>Potwierdzam zmianę terminu Państwa wizyty.</p>
-            <div class="section section-orange">
-                <h3>Poprzedni termin</h3>
-                <p><strong>Data:</strong> ${originalDate}</p>
-                <p><strong>Godzina:</strong> ${originalTime}</p>
-            </div>
-            <div class="section section-green">
-                <h3>Nowy, potwierdzony termin</h3>
-                <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service}</p>
-                <p><strong>Data:</strong> ${newDate}</p>
-                <p><strong>Godzina:</strong> ${newTime}</p>
-            </div>
-            <p>Do zobaczenia w nowym terminie!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
-        `;
+      <h2>Zmiana terminu wizyty</h2>
+      <p>Dzień dobry ${afterData.name},</p>
+      <p>${isPendingAfter ? 'Otrzymaliśmy prośbę o zmianę terminu Twojej wizyty. Nowy termin został zapisany i oczekuje na potwierdzenie.' : 'Potwierdzam zmianę terminu Państwa wizyty.'}</p>
+      <div class="section section-orange">
+        <h3>Poprzedni termin</h3>
+        <p><strong>Data:</strong> ${originalDate}</p>
+        <p><strong>Godzina:</strong> ${originalTime}</p>
+      </div>
+      <div class="section ${isPendingAfter ? 'section-orange' : 'section-green'}">
+        <h3>${isPendingAfter ? 'Nowy proponowany termin (oczekuje potwierdzenia)' : 'Nowy, potwierdzony termin'}</h3>
+        <p><strong>Usługa:</strong> ${(serviceData === null || serviceData === void 0 ? void 0 : serviceData.name) || afterData.service}</p>
+        <p><strong>Data:</strong> ${newDate}</p>
+        <p><strong>Godzina:</strong> ${newTime}</p>
+      </div>
+      <p>${isPendingAfter ? 'Otrzymasz osobne powiadomienie po potwierdzeniu terminu.' : 'Do zobaczenia w nowym terminie!'}<br><strong>Joanna Rudzińska-Łodyga</strong></p>
+    `;
             const clientEmailDoc = {
                 to: afterData.email,
                 message: {

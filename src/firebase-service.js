@@ -1,4 +1,5 @@
-// Firebase service for appointment booking
+
+import { mutateAppointmentState } from './state-machine.js';
 import { 
   collection, 
   addDoc, 
@@ -14,21 +15,20 @@ import {
   Timestamp,
   getDoc
 } from 'firebase/firestore';
-import { trace } from 'firebase/performance';
-import { db, perf } from './firebase-config.js';
+import { db } from './firebase-config.js';
 
-// Safe performance tracing function
-const safeTrace = (perfInstance, name) => {
-  if (!perfInstance) return null;
-  try {
-    return trace(perfInstance, name);
-  } catch (error) {
-    console.warn('Performance tracing failed:', error);
-    return null;
-  }
-};
+const MAX_RESCHEDULES = 3;
 
 class FirebaseService {
+  /**
+   * Pobiera historię zmian dla danej wizyty (appointmentId)
+   */
+  async getAppointmentHistory(appointmentId) {
+    const historyRef = collection(db, 'appointmentHistory');
+    const q = query(historyRef, where('appointmentId', '==', appointmentId), orderBy('ts', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  }
   constructor() {
     this.appointmentsCollection = collection(db, 'appointments');
     this.temporaryBlocksCollection = collection(db, 'temporaryBlocks');
@@ -125,13 +125,10 @@ class FirebaseService {
    * @returns {Promise<Array<object>>} A list of available slots with details.
    */
   async getAvailableTimeSlots(date, excludeSessionId = null) {
-    const perfTrace = safeTrace(perf, 'getAvailableTimeSlots_Advanced');
-    perfTrace?.start();
     try {
       const cacheKey = `advanced_${date}_${excludeSessionId || 'none'}`;
       const cached = this.slotsCache.get(cacheKey);
       if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
-        perfTrace?.stop();
         return cached.slots;
       }
 
@@ -195,12 +192,10 @@ class FirebaseService {
       }
 
       this.slotsCache.set(cacheKey, { slots: result, timestamp: Date.now() });
-      perfTrace?.stop();
       return result;
 
     } catch (error) {
       console.error('Error getting available time slots with advanced logic:', error);
-      perfTrace?.stop();
       return [];
     }
   }
@@ -210,6 +205,7 @@ class FirebaseService {
    * This is the final validation before booking.
    * @param {string} date
    * @param {string} time
+                    await this.logAppointmentHistory(appointmentId, data.status, 'cancelled', cancelledBy, updateData);
    * @param {string} serviceId
    * @param {string|null} excludeSessionId
    * @param {string|null} excludeAppointmentId
@@ -373,9 +369,6 @@ class FirebaseService {
   }
 
   async submitAppointmentDirect(appointmentData, sessionId = null) {
-    const perfTrace = safeTrace(perf, 'submitAppointment');
-    perfTrace?.start();
-    perfTrace?.putAttribute('service', appointmentData.service || 'unknown');
     
     try {
       const isAvailable = await this.isTimeSlotAvailableWithDuration(
@@ -403,8 +396,6 @@ class FirebaseService {
         await this.removeTemporaryBlock(sessionId);
       }
       
-      perfTrace?.putAttribute('success', 'true');
-      perfTrace?.stop();
       return {
         success: true,
         appointmentId: docRef.id,
@@ -412,8 +403,6 @@ class FirebaseService {
       };
     } catch (error) {
       console.error('Error submitting appointment:', error);
-      perfTrace?.putAttribute('error', 'true');
-      perfTrace?.stop();
       throw new Error(error.message || 'Failed to submit appointment');
     }
   }
@@ -701,7 +690,10 @@ class FirebaseService {
   async cancelAppointment(appointmentId, cancelledBy = 'client', reason = '') {
     try {
       const appointmentRef = doc(db, 'appointments', appointmentId);
-      const updateData = { status: 'cancelled', cancelledAt: Timestamp.now(), cancelledBy, cancellationReason: reason, updatedAt: Timestamp.now() };
+      const appointmentDoc = await getDoc(appointmentRef);
+      if (!appointmentDoc.exists()) throw new Error('Appointment not found');
+      const data = appointmentDoc.data();
+      const updateData = mutateAppointmentState(data, 'cancelled', { now: Timestamp.now(), cancelledBy, reason });
       await updateDoc(appointmentRef, updateData);
       return { success: true, message: 'Appointment cancelled successfully' };
     } catch (error) {
@@ -710,28 +702,48 @@ class FirebaseService {
     }
   }
 
-  async rescheduleAppointment(appointmentId, newDate, newTime) {
+  async rescheduleAppointment(appointmentId, newDate, newTime, initiatedBy = 'client') {
     try {
       const appointmentRef = doc(db, 'appointments', appointmentId);
       const appointmentDoc = await getDoc(appointmentRef);
       if (!appointmentDoc.exists()) throw new Error('Appointment not found');
-      
+
       const currentData = appointmentDoc.data();
+      // Limit przełożeń tylko dla klienta
+      if (initiatedBy === 'client' && (currentData.rescheduleCount || 0) >= MAX_RESCHEDULES) {
+        throw new Error(`Osiągnięto maksymalną liczbę przełożeń (${MAX_RESCHEDULES}). Skontaktuj się bezpośrednio w celu dalszych zmian.`);
+      }
+
       const isAvailable = await this.isTimeSlotAvailableWithDuration(newDate, newTime, currentData.service, null, appointmentId);
       if (!isAvailable) throw new Error('Selected time slot is not available or conflicts with existing appointment');
-      
-      const updateData = {
-        originalDate: currentData.confirmedDate || currentData.preferredDate,
-        originalTime: currentData.confirmedTime || currentData.preferredTime,
-        preferredDate: newDate,
-        preferredTime: newTime,
-        confirmedDate: newDate,
-        confirmedTime: newTime,
-        rescheduleCount: (currentData.rescheduleCount || 0) + 1,
-        updatedAt: Timestamp.now()
-      };
+
+      const previousDate = currentData.confirmedDate || currentData.preferredDate;
+      const previousTime = currentData.confirmedTime || currentData.preferredTime;
+      const wasConfirmed = currentData.status === 'confirmed';
+
+
+      let updateData;
+      if (initiatedBy === 'admin') {
+        // Admin: przejście na confirmed (jeśli pending) lub pozostaje confirmed
+        updateData = mutateAppointmentState(currentData, 'confirmed', { now: Timestamp.now() });
+        updateData.preferredDate = newDate;
+        updateData.preferredTime = newTime;
+        updateData.rescheduleCount = (currentData.rescheduleCount || 0) + 1;
+        updateData.originalDate = previousDate;
+        updateData.originalTime = previousTime;
+      } else {
+        // Klient: jeśli było confirmed, przejście na pending, jeśli pending – pozostaje pending
+        const nextState = wasConfirmed ? 'pending' : currentData.status;
+        updateData = mutateAppointmentState(currentData, nextState, { now: Timestamp.now() });
+        updateData.preferredDate = newDate;
+        updateData.preferredTime = newTime;
+        updateData.rescheduleCount = (currentData.rescheduleCount || 0) + 1;
+        updateData.originalDate = previousDate;
+        updateData.originalTime = previousTime;
+      }
+
       await updateDoc(appointmentRef, updateData);
-      return { success: true, message: 'Appointment rescheduled successfully' };
+      return { success: true, message: 'Appointment rescheduled successfully', revertedToPending: initiatedBy !== 'admin' && wasConfirmed };
     } catch (error) {
       console.error('Error rescheduling appointment:', error);
       throw new Error(error.message || 'Failed to reschedule appointment');
@@ -903,6 +915,21 @@ class FirebaseService {
       console.error('Error during daily maintenance:', error);
       throw new Error('Failed to perform daily maintenance');
     }
+  }
+
+  /**
+   * Confirm appointment: only if status is pending. Sets status=confirmed, confirmedDate/Time if missing, resets confirmEmailSent flag.
+   */
+  async confirmAppointment(appointmentId) {
+    const appointmentRef = doc(db, 'appointments', appointmentId);
+    const appointmentDoc = await getDoc(appointmentRef);
+    if (!appointmentDoc.exists()) throw new Error('Appointment not found');
+    const data = appointmentDoc.data();
+    if (data.status !== 'pending') throw new Error('Można potwierdzić tylko wizytę oczekującą.');
+    const updateData = mutateAppointmentState(data, 'confirmed', { now: Timestamp.now() });
+    updateData.confirmEmailSent = false;
+    await updateDoc(appointmentRef, updateData);
+    return { success: true };
   }
 }
 

@@ -29,7 +29,7 @@
       { "source": "/umow-wizyte", "destination": "/main/umow-wizyte.html" },
       { "source": "/kontakt", "destination": "/main/kontakt.html" },
       { "source": "/polityka-prywatnosci", "destination": "/main/polityka-prywatnosci.html" },
-      { "source": "/manage-reservation/**", "destination": "/src/manage-reservation.html" },
+  { "source": "/manage-reservation/**", "destination": "/main/manage-reservation.html" },
       
       
       {

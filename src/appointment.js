@@ -22,9 +22,9 @@ class AppointmentBooking {
       if (!publicAuth.isInitialized) {
         await publicAuth.init();
       }
-    } catch (error) {
-      console.error('Failed to initialize authentication:', error);
-      this.showError('Błąd połączenia. Spróbuj odświeżyć stronę.');
+    } catch {
+      this.showMessage('Błąd połączenia. Spróbuj odświeżyć stronę.', 'error');
+      this.setLoadingState(false);
       return;
     }
 
@@ -194,7 +194,7 @@ class AppointmentBooking {
     // Ensure user is authenticated
     try {
       await publicAuth.ensureAuthenticated();
-    } catch (error) {
+    } catch {
       this.showMessage('Błąd połączenia. Spróbuj odświeżyć stronę.', 'error');
       this.setLoadingState(false);
       return;
@@ -280,7 +280,7 @@ class AppointmentBooking {
       
       if (response.success) {
         // Cloud Functions will automatically send confirmation emails
-        this.showMessage('Dziękuję! Twoje zgłoszenie zostało wysłane. Skontaktuję się z Tobą w ciągu 24 godzin.', 'success');
+        this.showMessage('Dziękuję! Twoje zgłoszenie zapytanie zostało wysłane.', 'success');
         this.form.reset();
         this.clearTimeSlots();
         this.clearTemporaryBlock();
@@ -347,8 +347,8 @@ class AppointmentBooking {
           event.target.value = '';
           return;
         }
-      } catch (error) {
-        console.warn('Could not validate service-specific availability:', error);
+      } catch {
+        console.warn('Could not validate service-specific availability');
       }
     }
     

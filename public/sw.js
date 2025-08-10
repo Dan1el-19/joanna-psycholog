@@ -1,4 +1,4 @@
-// Service Worker dla aplikacji psychologa
+// Service Worker dla aplikacji terapeuty
 const STATIC_CACHE = 'static-v2';
 const DYNAMIC_CACHE = 'dynamic-v2';
 

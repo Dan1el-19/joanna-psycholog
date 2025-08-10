@@ -1,7 +1,8 @@
 // src/app.js
 
-import { adminAuth } from './admin-auth.js';
-import { default as AdminNavigation } from './admin-navigation.js';
+// Usuwamy statyczne importy - będą ładowane dynamicznie tylko na stronach admina
+// import { adminAuth } from './admin-auth.js';
+// import { default as AdminNavigation } from './admin-navigation.js';
 
 // ... (Klasy EventBus i Store bez zmian) ...
 class EventBus {
@@ -124,24 +125,25 @@ class App {
                 return;
             }
 
-            console.log("Admin page detected. Initializing auth listener...");
+            console.log("Admin page detected. Loading admin modules...");
             
-            // adminAuth i AdminNavigation już zaimportowane statycznie
+            // Dynamiczne importy tylko na stronach admina
+            const [{ adminAuth }, { default: AdminNavigation }] = await Promise.all([
+                import('./admin-auth.js'),
+                import('./admin-navigation.js')
+            ]);
             
-            // Rejestrujemy nawigację od razu
             const adminNav = new AdminNavigation();
             app.register('navigation', adminNav);
 
-            // KLUCZOWA ZMIANA: Nasłuchujemy na ZMIANY stanu logowania
             adminAuth.onAuthStateChanged((user) => {
-                console.log('Auth state changed, user:', user ? user.email : 'null');
-                this.store.setState({ currentUser: user });
+                const isAuthorized = !!user; // user już null gdy brak uprawnień (filtrowane w admin-auth)
+                console.log('Auth state changed, user:', isAuthorized ? user.email : 'null');
+                this.store.setState({ currentUser: isAuthorized ? user : null });
 
-                if (user) {
-                    // Jeśli jest użytkownik, inicjalizujemy pełny interfejs admina
+                if (isAuthorized) {
                     adminNav.init(user);
                 } else {
-                    // Jeśli nie ma użytkownika, pokazujemy formularz logowania
                     adminNav.showAuthRequired();
                 }
             });

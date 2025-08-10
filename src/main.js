@@ -140,6 +140,12 @@ async function loadPageModules() {
   if (document.getElementById('reservation-content')) {
     import('./reservation-management.js');
   }
+
+  // Warunkowy import panelu admina tylko na stronach admina
+  // admin-auth.js jest teraz ładowany dynamicznie w app.js
+  if (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/schedule-admin')) {
+    import('./admin-panel.js');
+  }
 }
 
 function applyServicesFallback(serviceSelect, serviceDurations, servicePrices) {

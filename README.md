@@ -1,11 +1,9 @@
-# Joanna Rudzińska-Łodyga - Strona Psychologa
-
-Profesjonalna strona internetowa psychologa z zaawansowanym systemem rezerwacji wizyt online.
+Profesjonalna strona internetowa terapeuty z zaawansowanym systemem rezerwacji wizyt online.
 
 ## 🚀 Funkcjonalności
 
 ### Dla klientów:
-- **Strona główna** z informacjami o psychologu
+- **Strona główna** z informacjami o terapeucie
 - **O mnie** - kwalifikacje i doświadczenie
 - **Oferta** - dostępne usługi i cennik
 - **Umów wizytę** - system rezerwacji online z:

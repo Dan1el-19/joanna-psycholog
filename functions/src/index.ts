@@ -54,6 +54,7 @@ interface Appointment {
   isArchived?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  confirmEmailSent?: boolean;
 }
 
 interface Service {
@@ -62,6 +63,57 @@ interface Service {
   price: number;
   duration: number;
 }
+
+// --- Confirm Appointment Email Trigger ---
+export const sendConfirmEmail = onDocumentUpdated(
+  {
+    document: 'appointments/{appointmentId}',
+    region: 'europe-central2'
+  },
+  async (event) => {
+    try {
+      const beforeData = event.data?.before.data() as Appointment;
+      const afterData = event.data?.after.data() as Appointment;
+      if (!beforeData || !afterData) return;
+
+      // Only trigger if status changed from pending to confirmed and not already sent
+      if (
+        beforeData.status === 'pending' &&
+        afterData.status === 'confirmed' &&
+        !afterData.confirmEmailSent
+      ) {
+        const serviceData = await getServiceData(afterData.service);
+        const confirmContent = `
+          <h2>Potwierdzenie wizyty</h2>
+          <p>Dzień dobry ${afterData.name},</p>
+          <p>Twoja wizyta została potwierdzona.</p>
+          <div class="section section-green">
+            <h3>Szczegóły wizyty</h3>
+            <p><strong>Usługa:</strong> ${serviceData?.name || afterData.service}</p>
+            <p><strong>Data:</strong> ${afterData.confirmedDate}</p>
+            <p><strong>Godzina:</strong> ${afterData.confirmedTime}</p>
+          </div>
+          <p>Do zobaczenia!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
+        `;
+        const clientEmailDoc = {
+          to: afterData.email,
+          message: {
+            subject: 'Potwierdzenie wizyty - My Reflection',
+            html: generateEmailHTML('Potwierdzenie wizyty', 'Twoja wizyta została potwierdzona.', confirmContent)
+          }
+        };
+        await db.collection('mail').add(clientEmailDoc);
+        await event.data?.after.ref.update({
+          confirmEmailSent: true,
+          confirmEmailSentAt: FieldValue.serverTimestamp()
+        });
+        console.log('Confirmation email sent for', event.params.appointmentId);
+      }
+    } catch (error) {
+      console.error('Error sending confirmation email:', error);
+    }
+  }
+);
 
 // ##################################################################
 // # NEW PROFESSIONAL EMAIL TEMPLATE
@@ -489,23 +541,24 @@ export const sendRescheduleEmail = onDocumentUpdated(
         const newTime = afterData.preferredTime || afterData.confirmedTime;
         const serviceData = await getServiceData(afterData.service);
 
-        const rescheduleContent = `
-            <h2>Zmiana terminu wizyty</h2>
-            <p>Dzień dobry ${afterData.name},</p>
-            <p>Potwierdzam zmianę terminu Państwa wizyty.</p>
-            <div class="section section-orange">
-                <h3>Poprzedni termin</h3>
-                <p><strong>Data:</strong> ${originalDate}</p>
-                <p><strong>Godzina:</strong> ${originalTime}</p>
-            </div>
-            <div class="section section-green">
-                <h3>Nowy, potwierdzony termin</h3>
-                <p><strong>Usługa:</strong> ${serviceData?.name || afterData.service}</p>
-                <p><strong>Data:</strong> ${newDate}</p>
-                <p><strong>Godzina:</strong> ${newTime}</p>
-            </div>
-            <p>Do zobaczenia w nowym terminie!<br><strong>Joanna Rudzińska-Łodyga</strong></p>
-        `;
+    const isPendingAfter = afterData.status === 'pending';
+    const rescheduleContent = `
+      <h2>Zmiana terminu wizyty</h2>
+      <p>Dzień dobry ${afterData.name},</p>
+      <p>${isPendingAfter ? 'Otrzymaliśmy prośbę o zmianę terminu Twojej wizyty. Nowy termin został zapisany i oczekuje na potwierdzenie.' : 'Potwierdzam zmianę terminu Państwa wizyty.'}</p>
+      <div class="section section-orange">
+        <h3>Poprzedni termin</h3>
+        <p><strong>Data:</strong> ${originalDate}</p>
+        <p><strong>Godzina:</strong> ${originalTime}</p>
+      </div>
+      <div class="section ${isPendingAfter ? 'section-orange' : 'section-green'}">
+        <h3>${isPendingAfter ? 'Nowy proponowany termin (oczekuje potwierdzenia)' : 'Nowy, potwierdzony termin'}</h3>
+        <p><strong>Usługa:</strong> ${serviceData?.name || afterData.service}</p>
+        <p><strong>Data:</strong> ${newDate}</p>
+        <p><strong>Godzina:</strong> ${newTime}</p>
+      </div>
+      <p>${isPendingAfter ? 'Otrzymasz osobne powiadomienie po potwierdzeniu terminu.' : 'Do zobaczenia w nowym terminie!'}<br><strong>Joanna Rudzińska-Łodyga</strong></p>
+    `;
 
         const clientEmailDoc = {
           to: afterData.email,
@@ -728,7 +781,7 @@ export const sendContactFormEmail = onDocumentCreated(
           </p>
         </div>
 
-        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong><br>Psycholog</p>
+  <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong><br>Terapeuta</p>
       `;
 
       // Send email to therapist

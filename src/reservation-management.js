@@ -275,12 +275,17 @@ class ReservationManagement {
     }
     this.showLoading('Zmienianie terminu wizyty...');
     try {
-      await firebaseService.rescheduleAppointment(this.appointment.id, this.rescheduleSelectedDate, this.rescheduleSelectedTime);
+      const result = await firebaseService.rescheduleAppointment(this.appointment.id, this.rescheduleSelectedDate, this.rescheduleSelectedTime, 'client');
       await this.loadReservation();
-      this.showSuccess('Termin został zmieniony', `Nowy termin: ${this.rescheduleSelectedDate} o ${this.rescheduleSelectedTime}. Otrzymasz email z potwierdzeniem.`);
+      const extra = result.revertedToPending ? ' Wizyta wymaga ponownego potwierdzenia.' : '';
+      this.showSuccess('Termin został zmieniony', `Nowy termin: ${this.rescheduleSelectedDate} o ${this.rescheduleSelectedTime}.${extra}`);
     } catch (error) {
       console.error('Error rescheduling appointment:', error);
-      this.showError(error.message || 'Błąd podczas zmiany terminu.');
+      if (error.message && error.message.includes('maksymalną liczbę przełożeń')) {
+        this.showError(error.message + '<br>W razie potrzeby napisz na <a href="mailto:j.rudzinska@myreflection.pl" class="text-blue-600 underline">j.rudzinska@myreflection.pl</a>');
+      } else {
+        this.showError(error.message || 'Błąd podczas zmiany terminu.');
+      }
     }
   }
 

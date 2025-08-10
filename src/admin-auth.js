@@ -6,62 +6,103 @@
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import app from './firebase-config.js';
 
+// Lista dozwolonych administratorów (konfigurowalna przez env)
+const ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
 class AdminAuthSystem {
   constructor() {
     this.auth = getAuth(app);
     this.currentUser = null;
-    
-    // Prosty listener, który tylko aktualizuje stan
+    this._isAuthorized = false;
+    this._logoutInProgress = false;
     onAuthStateChanged(this.auth, (user) => {
-      this.currentUser = user;
+      this._processAuthState(user);
     });
   }
-
-  /**
-   * ZMIANA: Zamiast skomplikowanego waitForInitialAuth,
-   * udostępniamy bezpośredni dostęp do listenera onAuthStateChanged.
-   * To jest "reaktywne" serce naszej autentykacji.
-   */
-  onAuthStateChanged(callback) {
-    return onAuthStateChanged(this.auth, callback);
+  _processAuthState(user) {
+    this.currentUser = user;
+    this._isAuthorized = this.isAuthorizedAdmin(user);
+    // NIE pokazujemy automatycznie formularza logowania
+    // Formularz będzie pokazany tylko gdy zostanie jawnie wywołany i tylko na stronie admina
   }
-
+  onAuthStateChanged(callback) {
+    return onAuthStateChanged(this.auth, (user) => {
+      this._processAuthState(user);
+      callback(this._isAuthorized ? user : null);
+    });
+  }
   async authenticate(email, password) {
-    // Logika logowania bez zmian
     try {
-      const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
-      return userCredential.user;
+      const cred = await signInWithEmailAndPassword(this.auth, email, password);
+      if (!this.isAuthorizedAdmin(cred.user)) {
+        await signOut(this.auth);
+        throw new Error('Brak uprawnień do panelu administracyjnego');
+      }
+      return cred.user;
     } catch (error) {
-       let errorMessage = 'Błąd logowania';
-       switch (error.code) {
-         case 'auth/invalid-email': errorMessage = 'Nieprawidłowy adres email'; break;
-         case 'auth/user-not-found':
-         case 'auth/wrong-password':
-         case 'auth/invalid-credential': errorMessage = 'Nieprawidłowe dane logowania'; break;
-         default: errorMessage = `Błąd logowania: ${error.message}`;
-       }
-       throw new Error(errorMessage);
+      let errorMessage = 'Błąd logowania';
+      switch (error.code) {
+        case 'auth/invalid-email': errorMessage = 'Nieprawidłowy adres email'; break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential': errorMessage = 'Nieprawidłowe dane logowania'; break;
+        default: errorMessage = error.message || `Błąd logowania: ${error.code}`;
+      }
+      throw new Error(errorMessage);
     }
   }
-
+  isAuthorizedAdmin(user) {
+    if (!user || !user.email) return false;
+    if (ADMIN_EMAILS.length === 0) {
+      console.error('Lista ADMIN_EMAILS jest pusta – dostęp zablokowany. Skonfiguruj VITE_ADMIN_EMAILS.');
+      return false;
+    }
+    return ADMIN_EMAILS.includes(user.email.toLowerCase());
+  }
   async logout() {
-    await signOut(this.auth);
+    if (this._logoutInProgress) return;
+    this._logoutInProgress = true;
+    try { await signOut(this.auth); } finally { this._logoutInProgress = false; }
   }
-
-  isAuthenticated() {
-    return !!this.currentUser;
+  async forceLogout(message) {
+    await this.logout();
+    this.wipeAdminDom();
+    this.showLoginForm(message);
   }
-
-  getAuthStatus() {
-    return {
-      isAuthenticated: !!this.currentUser,
-      sessionValid: !!this.currentUser,
-      user: this.currentUser
-    };
+  wipeAdminDom() {
+    // Sprawdź czy jesteśmy na stronie admina
+    const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/schedule-admin');
+    if (!isAdminPage) {
+      console.warn('wipeAdminDom called on non-admin page, ignoring');
+      return;
+    }
+    
+    const panel = document.getElementById('admin-panel') || document.querySelector('main');
+    if (panel) panel.innerHTML = '<div class="p-6 text-center text-red-600 text-sm">Czyszczenie interfejsu…</div>';
   }
-  
-  // Metoda do pokazywania formularza logowania - bez zmian
-  showLoginForm() {
+  isAuthenticated() { return !!this.currentUser && this._isAuthorized; }
+  getAuthStatus() { return { isAuthenticated: this.isAuthenticated(), sessionValid: this.isAuthenticated(), user: this._isAuthorized ? this.currentUser : null }; }
+  enforce() {
+    // Sprawdź czy jesteśmy na stronie admina
+    const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/schedule-admin');
+    if (!isAdminPage) {
+      return; // Nie wykonuj enforce na stronach publicznych
+    }
+    if (!this.isAuthenticated() && (this.currentUser || !this.currentUser)) {
+      if (document.getElementById('admin-header')) {
+        this.wipeAdminDom();
+        this.showLoginForm();
+      }
+    }
+  }
+  // Metoda do pokazywania formularza logowania - z zabezpieczeniem
+  showLoginForm(initialMessage) {
+    // Sprawdź czy jesteśmy na stronie admina
+    const isAdminPage = window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/schedule-admin');
+    if (!isAdminPage) {
+      console.warn('showLoginForm called on non-admin page, ignoring');
+      return;
+    }
     if (document.querySelector('.auth-overlay')) return;
     const overlay = document.createElement('div');
     overlay.className = 'auth-overlay';
@@ -72,10 +113,9 @@ class AdminAuthSystem {
           <div class="form-group"><label for="admin-email">Email:</label><input type="email" id="admin-email" class="form-control" required autofocus autocomplete="username"></div>
           <div class="form-group"><label for="admin-password">Hasło:</label><input type="password" id="admin-password" class="form-control" required autocomplete="current-password"></div>
           <div class="form-actions"><button type="submit" class="btn-primary">Zaloguj się</button></div>
-          <div class="auth-message"></div>
+          <div class="auth-message">${initialMessage ? `<span class='error'>${initialMessage}</span>` : ''}</div>
         </form>
-      </div>
-    `;
+      </div>`;
     const style = document.createElement('style');
     style.textContent = `
       .auth-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;}
@@ -91,24 +131,19 @@ class AdminAuthSystem {
     `;
     document.head.appendChild(style);
     document.body.appendChild(overlay);
-
     const form = overlay.querySelector('.auth-form');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const submitBtn = form.querySelector('.btn-primary');
       const messageDiv = form.querySelector('.auth-message');
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Logowanie...';
+      submitBtn.disabled = true; submitBtn.textContent = 'Logowanie...';
       try {
         await this.authenticate(form.querySelector('#admin-email').value, form.querySelector('#admin-password').value);
-        // Po udanym logowaniu, listener onAuthStateChanged w app.js sam przebuduje interfejs.
-        // Nie musimy już nic więcej robić.
         overlay.remove();
       } catch (error) {
         messageDiv.className = 'auth-message error';
         messageDiv.textContent = error.message;
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Zaloguj się';
+        submitBtn.disabled = false; submitBtn.textContent = 'Zaloguj się';
       }
     });
   }

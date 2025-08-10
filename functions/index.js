@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+/* eslint-disable no-undef */
+/* global process, exports */
 const { onRequest } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -16,15 +19,13 @@ app.use(cors({ origin: true }));
 app.use(express.json());
 
 // Email transporter configuration (using Gmail - free option)
-const createEmailTransporter = () => {
-  return nodemailer.createTransporter({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER, // Gmail address
-      pass: process.env.EMAIL_APP_PASSWORD // Gmail app password
-    }
-  });
-};
+const createEmailTransporter = () => nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER, // Gmail address
+    pass: process.env.EMAIL_APP_PASSWORD // Gmail app password
+  }
+});
 
 // Routes
 
@@ -211,7 +212,7 @@ async function sendConfirmationEmail(appointmentData) {
       
       <p>Pozdrawiam serdecznie,<br>
       Joanna Rudzińska-Łodyga<br>
-      Psycholog</p>
+  Terapeuta</p>
       
       <hr>
       <p style="font-size: 12px; color: #666;">
@@ -272,7 +273,7 @@ function getServiceName(serviceKey) {
 }
 
 // Error handling middleware
-app.use((error, req, res, next) => {
+app.use((error, req, res) => { // removed next to satisfy no-unused-vars
   console.error('Unhandled error:', error);
   res.status(500).json({
     error: 'Internal server error',

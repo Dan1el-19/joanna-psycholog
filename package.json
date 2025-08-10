@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "prebuild": "node scripts/generate-version-info.js",
-    "build": "vite build",
+  "prebuild": "node scripts/generate-version-info.js",
+  "build": "vite build && node scripts/generate-sitemap.js",
     "build:app": "npm run build",
     "build:functions": "cd functions && npm install && npm run build && cd ..",
     "deploy:firebase": "firebase deploy",

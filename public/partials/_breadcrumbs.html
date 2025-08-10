@@ -1,0 +1,35 @@
+<nav aria-label="Ścieżka" class="text-sm mb-6" id="breadcrumbs">
+  <ol class="flex flex-wrap gap-2 text-secondary">
+    <li><a href="/" class="text-accent hover:underline">Start</a></li>
+  </ol>
+</nav>
+<script>
+(function(){
+  const path = window.location.pathname.replace(/\/$/, '');
+  const map = {
+    '/oferta':'Oferta',
+    '/o-mnie':'O mnie',
+    '/kwalifikacje':'Kwalifikacje',
+    '/umow-wizyte':'Umów wizytę',
+    '/kontakt':'Kontakt',
+    '/polityka-prywatnosci':'Polityka prywatności'
+  };
+  const container = document.querySelector('#breadcrumbs ol');
+  if(!container) return;
+  const segments = path === '' || path === '/' ? [] : [path];
+  const ld = {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[]};
+  segments.forEach((seg, i) => {
+    const name = map[seg] || seg.replace('/', '').replace(/-/g,' ');
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="text-gray-400">/</span> <span>${name}</span>`;
+    container.appendChild(li);
+    ld.itemListElement.push({"@type":"ListItem","position": i+1, "name": name, "item": window.location.origin + seg});
+  });
+  if(ld.itemListElement.length){
+    const script = document.createElement('script');
+    script.type='application/ld+json';
+    script.textContent = JSON.stringify(ld);
+    document.head.appendChild(script);
+  }
+})();
+</script>

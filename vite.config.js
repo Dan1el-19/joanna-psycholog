@@ -84,7 +84,7 @@ export default defineConfig(({ command }) => {
             '/polityka-prywatnosci': '/main/polityka-prywatnosci.html',
             '/admin': '/main/admin.html',
             '/schedule-admin': '/main/admin.html',
-            '/manage-reservation': '/src/manage-reservation.html'
+            '/manage-reservation': '/main/manage-reservation.html'
           };
           if (routes[url]) {
             req.url = routes[url];
@@ -106,7 +106,7 @@ export default defineConfig(({ command }) => {
           kontakt: resolve(__dirname, "main/kontakt.html"),
           "polityka-prywatnosci": resolve(__dirname, "main/polityka-prywatnosci.html"),
           admin: resolve(__dirname, "main/admin.html"),
-          "manage-reservation": resolve(__dirname, "src/manage-reservation.html"),
+          "manage-reservation": resolve(__dirname, "main/manage-reservation.html"),
           "404": resolve(__dirname, "main/404.html"),
         },
         output: {

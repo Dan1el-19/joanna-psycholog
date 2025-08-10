@@ -2,7 +2,7 @@
 
 import { app } from './app.js';
 import { showToast, showConfirmation } from './ui-service.js';
-import { adminAuth } from './admin-auth.js';
+// adminAuth będzie importowany dynamicznie
 import firebaseApp from './firebase-config.js';
 
 class AdminNavigation {
@@ -174,7 +174,15 @@ class AdminNavigation {
   }
 
   async switchToView(view) {
-    if (!adminAuth.isAuthenticated()) { this.showAuthRequired(); return; }
+    try {
+      const { adminAuth } = await import('./admin-auth.js');
+      if (!adminAuth.isAuthenticated()) { await this.showAuthRequired(); return; }
+    } catch (error) {
+      console.error('Błąd podczas weryfikacji autoryzacji:', error);
+      await this.showAuthRequired();
+      return;
+    }
+    
     this.currentView = view;
     this.updateActiveNavigation();
     const content = document.getElementById('admin-content');
@@ -294,12 +302,17 @@ class AdminNavigation {
     }
   }
   
-  showAuthRequired() {
+  async showAuthRequired() {
     const container = this.getMainContainer();
     if (container.querySelector('#admin-header')) {
         container.innerHTML = '';
     }
-    adminAuth.showLoginForm();
+    try {
+      const { adminAuth } = await import('./admin-auth.js');
+      adminAuth.showLoginForm();
+    } catch (error) {
+      console.error('Błąd podczas pokazywania formularza logowania:', error);
+    }
   }
 
   getMainContainer = () => document.getElementById('admin-panel') || document.getElementById('schedule-admin') || document.querySelector('main') || document.querySelector('#app') || document.body;
@@ -336,6 +349,7 @@ class AdminNavigation {
     );
     if (confirmed) {
       try {
+        const { adminAuth } = await import('./admin-auth.js');
         await adminAuth.logout();
         window.location.href = '/';
       } catch (error) {
@@ -346,7 +360,13 @@ class AdminNavigation {
   }
 
   async deleteCollection(collectionName) {
-    if (!adminAuth.isAuthenticated()) return;
+    try {
+      const { adminAuth } = await import('./admin-auth.js');
+      if (!adminAuth.isAuthenticated()) return;
+    } catch (error) {
+      console.error('Błąd podczas weryfikacji autoryzacji:', error);
+      return;
+    }
     
     const collectionLabels = {
       'appointments': 'wszystkie wizyty',
@@ -401,7 +421,13 @@ class AdminNavigation {
   }
 
   async deleteAnonymousUsers() {
-    if (!adminAuth.isAuthenticated()) return;
+    try {
+      const { adminAuth } = await import('./admin-auth.js');
+      if (!adminAuth.isAuthenticated()) return;
+    } catch (error) {
+      console.error('Błąd podczas weryfikacji autoryzacji:', error);
+      return;
+    }
     
     const confirmed = await showConfirmation(
       'Usuwanie użytkowników anonymous',

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow admin/private interfaces
+Disallow: /admin
+Disallow: /schedule-admin
+Disallow: /manage-reservation
+
+Sitemap: https://www.myreflection.pl/sitemap.xml

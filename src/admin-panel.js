@@ -1,6 +1,6 @@
 // Admin panel for managing appointments
 import firebaseService from './firebase-service.js';
-import { adminAuth } from './admin-auth.js'; // Zmienione z auth.js na admin-auth.js
+// adminAuth będzie importowany dynamicznie
 import pricingService from './pricing-service.js';
 // NOWE: Importujemy serwis UI do obsługi potwierdzeń
 import { showConfirmation } from './ui-service.js';
@@ -76,6 +76,7 @@ switch (action) {
         case 'show-payment-dialog': this.showPaymentDialog(id, status, method); break;
         case 'show-notes-dialog': this.showNotesDialog(id, notes); break;
         case 'show-reschedule-dialog': this.showRescheduleDialog(id, date, time); break;
+        case 'show-history-dialog': this.showHistoryDialog(id); break;
         case 'archive': await this.archiveAppointment(id); break;
         case 'unarchive': await this.unarchiveAppointment(id); break;
     }
@@ -95,25 +96,22 @@ switch (action) {
         });
 
         // Listener dla formularzy w dialogach
-        const self = this; // Zachowujemy referencję do this
-        document.body.addEventListener('submit', async (event) => {
-            const form = event.target;
-            if (!['payment-form', 'reschedule-form'].includes(form.id)) return;
-            
-            event.preventDefault();
-            const id = form.dataset.id;
-
-            switch (form.id) {
-                case 'payment-form':
-                    await self.handlePaymentUpdate(id, new FormData(form));
-                    form.closest('.dialog-container')?.remove();
-                    break;
-                case 'reschedule-form':
-                    await self.handleRescheduleUpdate(id, new FormData(form));
-                    form.closest('.dialog-container')?.remove();
-                    break;
-            }
-        });
+    document.body.addEventListener('submit', async (event) => {
+      const form = event.target;
+      if (!['payment-form', 'reschedule-form'].includes(form.id)) return;
+      event.preventDefault();
+      const id = form.dataset.id;
+      switch (form.id) {
+        case 'payment-form':
+          await this.handlePaymentUpdate(id, new FormData(form));
+          form.closest('.dialog-container')?.remove();
+          break;
+        case 'reschedule-form':
+          await this.handleRescheduleUpdate(id, new FormData(form));
+          form.closest('.dialog-container')?.remove();
+          break;
+      }
+    });
     }
   }
 
@@ -202,6 +200,7 @@ switch (action) {
           ${augmentedData.paymentStatus !== 'paid' && augmentedData.status !== 'cancelled' ? `<button data-action="show-payment-dialog" data-id="${augmentedData.id}" data-status="${augmentedData.paymentStatus || 'pending'}" data-method="${augmentedData.paymentMethod || ''}" class="px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-xs sm:text-sm">Płatność</button>` : ''}
           <button data-action="show-notes-dialog" data-id="${augmentedData.id}" ${notesAttr} class="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs sm:text-sm">${augmentedData.notes ? 'Edytuj notatki' : 'Dodaj notatki'}</button>
           ${(augmentedData.status === 'confirmed' || augmentedData.status === 'pending') ? `<button data-action="show-reschedule-dialog" data-id="${augmentedData.id}" data-date="${augmentedData.preferredDate}" data-time="${augmentedData.preferredTime}" class="px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs md:text-sm">Przełóż</button>` : ''}
+          <button data-action="show-history-dialog" data-id="${augmentedData.id}" class="px-3 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition-colors text-xs sm:text-sm">Historia zmian</button>
           ${!augmentedData.isArchived ? `<button data-action="archive" data-id="${augmentedData.id}" class="px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-xs sm:text-sm">Archiwizuj</button>` : `<button data-action="unarchive" data-id="${augmentedData.id}" class="px-3 py-2 bg-gray-400 text-white rounded hover:bg-gray-500 transition-colors text-xs sm:text-sm">Przywróć</button>`}
         </div>
       </div>`;
@@ -210,22 +209,33 @@ switch (action) {
   async updateAppointmentStatus(appointmentId, newStatus) {
     if (!this.verifyAdminAccess()) return;
     try {
-      await firebaseService.updateAppointment(appointmentId, { status: newStatus });
+      if (newStatus === 'confirmed') {
+        await firebaseService.confirmAppointment(appointmentId);
+        this.app.events.emit('showToast', { message: 'Wizyta została potwierdzona.', type: 'success' });
+      } else {
+        await firebaseService.updateAppointment(appointmentId, { status: newStatus });
+        this.app.events.emit('showToast', { message: 'Status wizyty został zmieniony.', type: 'success' });
+      }
       this.loadAppointments();
-      this.app.events.emit('showToast', { message: 'Status wizyty został zmieniony.', type: 'success' });
-    } catch (error) { 
+    } catch (error) {
       this.app.events.emit('showToast', { message: 'Błąd podczas aktualizacji wizyty: ' + error.message, type: 'error' });
     }
   }
 
-  verifyAdminAccess() {
-    const authStatus = adminAuth.getAuthStatus();
-    if (!authStatus.isAuthenticated || !authStatus.sessionValid) {
-      this.app.events.emit('showToast', { message: 'Sesja wygasła. Zaloguj się ponownie.', type: 'error' });
-      // Nawigacja sama pokaże ekran logowania
+  async verifyAdminAccess() {
+    try {
+      const { adminAuth } = await import('./admin-auth.js');
+      const authStatus = adminAuth.getAuthStatus();
+      if (!authStatus.isAuthenticated || !authStatus.sessionValid) {
+        this.app.events.emit('showToast', { message: 'Sesja wygasła. Zaloguj się ponownie.', type: 'error' });
+        // Nawigacja sama pokaże ekran logowania
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('Błąd podczas weryfikacji dostępu admina:', error);
       return false;
     }
-    return true;
   }
 
   showNotesDialog(appointmentId, currentNotes) {
@@ -245,7 +255,7 @@ switch (action) {
   }
 
   async markSessionCompleted(appointmentId) {
-    if (!this.verifyAdminAccess()) return;
+    if (!(await this.verifyAdminAccess())) return;
     const confirmed = await showConfirmation(
         'Potwierdzenie',
         'Czy na pewno chcesz oznaczyć tę sesję jako odbytą?'
@@ -315,7 +325,7 @@ switch (action) {
       const newDate = formData.get('newDate');
       const newTime = formData.get('newTime');
       try {
-        await firebaseService.rescheduleAppointment(appointmentId, newDate, newTime);
+  await firebaseService.rescheduleAppointment(appointmentId, newDate, newTime, 'admin');
         this.loadAppointments();
         this.app.events.emit('showToast', { message: 'Wizyta została przełożona', type: 'success' });
       } catch (error) {
@@ -376,7 +386,33 @@ switch (action) {
     }
   }
 
-  // USUNIĘTE METODY: showSuccess, showError, showMessage
+  async showHistoryDialog(appointmentId) {
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-container fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    dialog.innerHTML = `
+      <div class="bg-white p-6 rounded-lg max-w-2xl w-full mx-4">
+        <h3 class="text-lg font-semibold mb-4">Historia zmian wizyty</h3>
+        <div id="history-list" class="mb-4 text-sm text-gray-700">Ładowanie historii...</div>
+        <div class="flex gap-2 justify-end"><button type="button" data-action="close-dialog" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Zamknij</button></div>
+      </div>`;
+    document.body.appendChild(dialog);
+    const historyList = dialog.querySelector('#history-list');
+    try {
+      const history = await firebaseService.getAppointmentHistory(appointmentId);
+      if (!history.length) {
+        historyList.innerHTML = '<div class="text-gray-500">Brak historii zmian dla tej wizyty.</div>';
+        return;
+      }
+      historyList.innerHTML = `<ul class="divide-y">${history.map(h => `
+        <li class="py-2">
+          <div><b>${h.fromStatus}</b> → <b>${h.toStatus}</b> <span class="text-xs text-gray-400">(${new Date(h.ts?.seconds ? h.ts.seconds * 1000 : h.ts).toLocaleString('pl-PL')})</span></div>
+          <div class="text-xs text-gray-500">Zmiana: ${h.changedBy || 'nieznany'}</div>
+          <pre class="bg-gray-100 rounded p-2 mt-1 text-xs overflow-x-auto">${JSON.stringify(h.diff, null, 2)}</pre>
+        </li>`).join('')}</ul>`;
+    } catch {
+      historyList.innerHTML = '<div class="text-red-500">Błąd podczas ładowania historii.</div>';
+    }
+  }
 }
 
 // Eksportujemy jedną instancję, żeby była singletonem w całej aplikacji

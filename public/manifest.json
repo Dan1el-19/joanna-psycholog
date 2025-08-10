@@ -1,7 +1,7 @@
 {
-  "name": "Joanna Rudzińska-Łodyga - Psycholog",
-  "short_name": "Psycholog Joanna",
-  "description": "Profesjonalna pomoc psychologiczna - terapia indywidualna i grupowa",
+  "name": "Joanna Rudzińska-Łodyga - Terapeuta",
+  "short_name": "Terapeuta Joanna",
+  "description": "Profesjonalna terapia indywidualna i grupowa online",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F9FAFB",
@@ -65,4 +65,5 @@
     }
   ]
 }
+
 
