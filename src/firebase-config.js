@@ -1,21 +1,38 @@
-// Firebase configuration template
-// Copy this file to firebase-config.js and replace with your actual Firebase project configuration
+// Firebase configuration using environment variables
+// ⚠️ BEZPIECZEŃSTWO: Klucze API są teraz w zmiennych środowiskowych
 
 import { initializeApp } from "firebase/app";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getPerformance } from "firebase/performance";
 
-// Firebase configuration object
-// Get these values from your Firebase project console
+// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyA3v9KK7hqhZOv2r1fg3raeCWfOjDYSAKY",
-  authDomain: "joanna-psycholog.firebaseapp.com",
-  projectId: "joanna-psycholog",
-  storageBucket: "joanna-psycholog.firebasestorage.app",
-  messagingSenderId: "1064648871285",
-  appId: "1:1064648871285:web:50dccd6147aba48571973c",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+// Validate required environment variables
+const requiredEnvVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN', 
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+const missingVars = requiredEnvVars.filter(varName => !import.meta.env[varName]);
+
+if (missingVars.length > 0) {
+  console.error('❌ Missing required environment variables:', missingVars);
+  console.error('Please create .env.local file with Firebase configuration');
+  throw new Error(`Missing environment variables: ${missingVars.join(', ')}`);
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -38,41 +55,45 @@ console.error = (...args) => {
 // Initialize Cloud Functions
 export const functions = getFunctions(app);
 
-// Initialize Performance Monitoring (disabled to prevent CSS class attribute errors)
-// export const perf = getPerformance(app);
-export const perf = null; // Disabled performance monitoring
+// Initialize Performance Monitoring (configurable)
+export const perf = import.meta.env.VITE_ENABLE_PERFORMANCE === 'true' 
+  ? getPerformance(app) 
+  : null;
 
 // Connect to emulators in development
-// Commented out to use production Firebase instead of emulators
-// if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-//   // Only connect to emulators if they haven't been connected already
-//   try {
-//     connectFirestoreEmulator(db, "localhost", 8080);
-//     connectFunctionsEmulator(functions, "localhost", 5001);
-//   } catch (error) {
-//     // Emulators already connected
-//     console.log("Firebase emulators already connected");
-//   }
-// }
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+  // Only connect to emulators if they haven't been connected already
+  try {
+    connectFirestoreEmulator(db, "localhost", 8080);
+    connectFunctionsEmulator(functions, "localhost", 5001);
+    console.log("🔧 Connected to Firebase emulators");
+  } catch (error) {
+    // Emulators already connected
+    console.log("Firebase emulators already connected");
+  }
+}
 
 export default app;
 
 /* 
-SETUP INSTRUCTIONS:
+SECURITY SETUP INSTRUCTIONS:
 
-1. Go to Firebase Console (https://console.firebase.google.com/)
-2. Create a new project or select existing project
-3. Go to Project Settings (gear icon)
-4. Scroll down to "Your apps" section
-5. Click "Add app" and select Web app (</>) 
-6. Register your app with a nickname
-7. Copy the firebaseConfig object from the setup code
-8. Replace the firebaseConfig object above with your values
-9. Rename this file from firebase-config.example.js to firebase-config.js
-10. Make sure firebase-config.js is in your .gitignore file
+1. Create .env.local file in project root
+2. Copy values from env.example and fill with your actual Firebase config
+3. NEVER commit .env.local to Git (it's already in .gitignore)
+4. For production, set environment variables in your hosting platform
 
-SECURITY NOTE:
-- The API key in the config is safe to expose in frontend code
-- It's used for identifying your Firebase project, not for authentication
-- However, make sure to configure Firestore security rules properly
+ENVIRONMENT VARIABLES:
+- VITE_FIREBASE_API_KEY: Your Firebase API key
+- VITE_FIREBASE_AUTH_DOMAIN: Your Firebase auth domain
+- VITE_FIREBASE_PROJECT_ID: Your Firebase project ID
+- VITE_FIREBASE_STORAGE_BUCKET: Your Firebase storage bucket
+- VITE_FIREBASE_MESSAGING_SENDER_ID: Your Firebase messaging sender ID
+- VITE_FIREBASE_APP_ID: Your Firebase app ID
+
+SECURITY NOTES:
+- API keys in frontend are safe for Firebase (they're project identifiers)
+- Real security comes from Firestore security rules
+- Always use proper authentication and authorization
+- Monitor Firebase usage and costs regularly
 */

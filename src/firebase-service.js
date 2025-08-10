@@ -17,6 +17,17 @@ import {
 import { trace } from 'firebase/performance';
 import { db, perf } from './firebase-config.js';
 
+// Safe performance tracing function
+const safeTrace = (perfInstance, name) => {
+  if (!perfInstance) return null;
+  try {
+    return trace(perfInstance, name);
+  } catch (error) {
+    console.warn('Performance tracing failed:', error);
+    return null;
+  }
+};
+
 class FirebaseService {
   constructor() {
     this.appointmentsCollection = collection(db, 'appointments');
@@ -114,7 +125,7 @@ class FirebaseService {
    * @returns {Promise<Array<object>>} A list of available slots with details.
    */
   async getAvailableTimeSlots(date, excludeSessionId = null) {
-    const perfTrace = perf ? trace(perf, 'getAvailableTimeSlots_Advanced') : null;
+    const perfTrace = safeTrace(perf, 'getAvailableTimeSlots_Advanced');
     perfTrace?.start();
     try {
       const cacheKey = `advanced_${date}_${excludeSessionId || 'none'}`;
@@ -362,7 +373,7 @@ class FirebaseService {
   }
 
   async submitAppointmentDirect(appointmentData, sessionId = null) {
-    const perfTrace = perf ? trace(perf, 'submitAppointment') : null;
+    const perfTrace = safeTrace(perf, 'submitAppointment');
     perfTrace?.start();
     perfTrace?.putAttribute('service', appointmentData.service || 'unknown');
     

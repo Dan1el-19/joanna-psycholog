@@ -18,7 +18,10 @@ class AppointmentBooking {
   async init() {
     // Initialize anonymous authentication first
     try {
-      await publicAuth.init();
+      // Wait for publicAuth to be ready
+      if (!publicAuth.isInitialized) {
+        await publicAuth.init();
+      }
     } catch (error) {
       console.error('Failed to initialize authentication:', error);
       this.showError('Błąd połączenia. Spróbuj odświeżyć stronę.');
@@ -537,5 +540,7 @@ class AppointmentBooking {
   }
 }
 
-// Initialize appointment booking when script loads
-new AppointmentBooking();
+// Initialize appointment booking only on pages with appointment form
+if (document.querySelector('form') && document.querySelector('#preferred-date')) {
+  new AppointmentBooking();
+}

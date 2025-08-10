@@ -337,5 +337,9 @@ class CalendarInterface {
   }
 }
 
-window.calendarInterface = new CalendarInterface();
-export default window.calendarInterface;
+// Initialize calendar interface only on pages with appointment form
+if (document.getElementById('preferred-date') && document.getElementById('preferred-time')) {
+  window.calendarInterface = new CalendarInterface();
+}
+
+export default window.calendarInterface || {};

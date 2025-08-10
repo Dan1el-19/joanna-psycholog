@@ -3,6 +3,7 @@
 import { app } from './app.js';
 import { showToast, showConfirmation } from './ui-service.js';
 import { adminAuth } from './admin-auth.js';
+import firebaseApp from './firebase-config.js';
 
 class AdminNavigation {
   constructor() {
@@ -374,7 +375,7 @@ class AdminNavigation {
       
       // Wywołaj Cloud Function do usuwania kolekcji
       const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app: firebaseApp } = await import('./firebase-config.js');
+      // firebaseApp już zaimportowany statycznie
       
       const functions = getFunctions(firebaseApp, 'europe-central2');
       const deleteCollectionFunction = httpsCallable(functions, 'deleteCollection');
@@ -415,7 +416,7 @@ class AdminNavigation {
       
       // Wywołaj Cloud Function do usuwania użytkowników anonymous
       const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const { app: firebaseApp } = await import('./firebase-config.js');
+      // firebaseApp już zaimportowany statycznie
       
       const functions = getFunctions(firebaseApp, 'europe-central2');
       const deleteAnonymousUsersFunction = httpsCallable(functions, 'deleteAnonymousUsers');

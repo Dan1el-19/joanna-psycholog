@@ -1,0 +1,68 @@
+{
+  "name": "Joanna Rudzińska-Łodyga - Psycholog",
+  "short_name": "Psycholog Joanna",
+  "description": "Profesjonalna pomoc psychologiczna - terapia indywidualna i grupowa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#2563EB",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "pl",
+  "categories": ["health", "medical", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/src/photos/reflection.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/src/photos/reflection.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Umów wizytę",
+      "short_name": "Rezerwacja",
+      "description": "Szybkie umówienie wizyty",
+      "url": "/umow-wizyte",
+      "icons": [
+        {
+          "src": "/src/photos/reflection.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Kontakt",
+      "short_name": "Kontakt",
+      "description": "Skontaktuj się ze mną",
+      "url": "/kontakt",
+      "icons": [
+        {
+          "src": "/src/photos/reflection.jpg",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/src/photos/reflection.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide",
+      "label": "Strona główna"
+    }
+  ]
+}
+

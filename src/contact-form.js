@@ -1,6 +1,6 @@
 // Contact form functionality
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase-config.js';
 
 class ContactForm {
   constructor() {
@@ -49,19 +49,7 @@ class ContactForm {
         throw new Error('Proszę wypełnić wszystkie wymagane pola i zaakceptować politykę prywatności.');
       }
       
-      // Firebase config - using the correct project configuration
-      const firebaseConfig = {
-        apiKey: "AIzaSyA3v9KK7hqhZOv2r1fg3raeCWfOjDYSAKY",
-        authDomain: "joanna-psycholog.firebaseapp.com",
-        projectId: "joanna-psycholog",
-        storageBucket: "joanna-psycholog.firebasestorage.app",
-        messagingSenderId: "1064648871285",
-        appId: "1:1064648871285:web:50dccd6147aba48571973c"
-      };
-      
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      // Firebase configuration already imported
       
       // Prepare message data
       const messageData = {
@@ -98,70 +86,100 @@ class ContactForm {
 
   showToast(message, type = 'info') {
     // Remove existing toasts
-    document.querySelectorAll('.contact-toast').forEach(toast => toast.remove());
-    
+    const existingToasts = document.querySelectorAll('.toast');
+    existingToasts.forEach(toast => toast.remove());
+
+    // Create toast element
     const toast = document.createElement('div');
-    toast.className = `contact-toast fixed top-4 right-4 p-3 sm:p-4 rounded-lg shadow-lg z-50 max-w-xs sm:max-w-md mx-4 sm:mx-0 ${
-      type === 'success' ? 'bg-green-50 border border-green-200 text-green-800' :
-      type === 'error' ? 'bg-red-50 border border-red-200 text-red-800' :
-      'bg-blue-50 border border-blue-200 text-blue-800'
-    }`;
+    toast.className = `toast fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 translate-x-full`;
     
-    // Add slide-in animation
-    toast.style.cssText = `
-      position: fixed !important;
-      top: 1rem !important;
-      right: 1rem !important;
-      z-index: 9999 !important;
-      transform: translateX(100%);
-      transition: transform 0.3s ease-out;
-    `;
+    // Set toast content based on type
+    const icon = this.getToastIcon(type);
+    const bgColor = this.getToastBgColor(type);
+    const textColor = this.getToastTextColor(type);
     
     toast.innerHTML = `
-      <div class="flex items-start space-x-3">
-        <div class="flex-shrink-0">
-          ${type === 'success' ? 
-            '<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>' :
-            type === 'error' ?
-            '<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>' :
-            '<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-          }
+      <div class="flex items-center ${bgColor} ${textColor} p-3 rounded-lg">
+        <div class="flex-shrink-0 mr-3">
+          ${icon}
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium leading-5">${message}</p>
+        <div class="flex-1 text-sm font-medium">
+          ${message}
         </div>
-        <div class="flex-shrink-0">
-          <button onclick="this.closest('.contact-toast').remove()" class="inline-flex text-gray-400 hover:text-gray-600 transition-colors">
-            <span class="sr-only">Zamknij</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
+        <button class="ml-3 flex-shrink-0 text-current hover:opacity-75" onclick="this.parentElement.parentElement.remove()">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
     `;
     
+    // Add to page
     document.body.appendChild(toast);
     
-    // Trigger slide-in animation
-    requestAnimationFrame(() => {
-      toast.style.transform = 'translateX(0)';
-    });
-    
-    // Auto remove after 7 seconds with slide-out animation
+    // Animate in
     setTimeout(() => {
-      if (toast.parentNode) {
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-          if (toast.parentNode) {
-            toast.remove();
-          }
-        }, 300);
+      toast.classList.remove('translate-x-full');
+    }, 100);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.classList.add('translate-x-full');
+        setTimeout(() => toast.remove(), 300);
       }
-    }, 7000);
+    }, 5000);
+  }
+
+  getToastIcon(type) {
+    switch (type) {
+      case 'success':
+        return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>`;
+      case 'error':
+        return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>`;
+      case 'warning':
+        return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+        </svg>`;
+      default:
+        return `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>`;
+    }
+  }
+
+  getToastBgColor(type) {
+    switch (type) {
+      case 'success':
+        return 'bg-green-50 border border-green-200';
+      case 'error':
+        return 'bg-red-50 border border-red-200';
+      case 'warning':
+        return 'bg-yellow-50 border border-yellow-200';
+      default:
+        return 'bg-blue-50 border border-blue-200';
+    }
+  }
+
+  getToastTextColor(type) {
+    switch (type) {
+      case 'success':
+        return 'text-green-800';
+      case 'error':
+        return 'text-red-800';
+      case 'warning':
+        return 'text-yellow-800';
+      default:
+        return 'text-blue-800';
+    }
   }
 }
 
-// Initialize contact form
-new ContactForm();
-export default ContactForm;
+// Initialize contact form only on pages with contact form
+if (document.getElementById('contact-form')) {
+  new ContactForm();
+}

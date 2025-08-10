@@ -1,209 +1,258 @@
-# Joanna Rudzińska-Łodyga - Psychologist Website
+# Joanna Rudzińska-Łodyga - Strona Psychologa
 
-A professional website for a psychologist practice with appointment booking functionality.
+Profesjonalna strona internetowa psychologa z zaawansowanym systemem rezerwacji wizyt online.
 
-## Features
+## 🚀 Funkcjonalności
 
-- Responsive design with Tailwind CSS
-- Appointment booking system
-- Firebase hosting and backend
-- Email notifications
-- Modern UI with animations
+### Dla klientów:
+- **Strona główna** z informacjami o psychologu
+- **O mnie** - kwalifikacje i doświadczenie
+- **Oferta** - dostępne usługi i cennik
+- **Umów wizytę** - system rezerwacji online z:
+  - Wyborem usługi i terminu
+  - Sprawdzaniem dostępności w czasie rzeczywistym
+  - Tymczasowym blokowaniem slotów
+  - Automatycznymi emailami potwierdzającymi
+- **Kontakt** - formularz kontaktowy
+- **Polityka prywatności** - wymagane informacje prawne
 
-## Tech Stack
+### Dla administratora:
+- **Panel administracyjny** z autoryzacją
+- **Zarządzanie rezerwacjami** - przeglądanie, edycja, anulowanie
+- **Harmonogram** - tworzenie i zarządzanie dostępnymi terminami
+- **Usługi** - dodawanie i edycja oferowanych usług
+- **Powiadomienia email** - automatyczne wysyłanie emaili
 
-- **Frontend**: HTML, CSS (Tailwind), JavaScript, AOS animations
-- **Backend**: Node.js, Express.js, Firebase Functions
-- **Database**: Firestore (NoSQL)
-- **Hosting**: Firebase Hosting
-- **Email**: Nodemailer with Gmail
+## 🛠️ Technologie
 
-## Getting Started
+### Frontend:
+- **HTML5** - semantyczna struktura
+- **CSS3** z **Tailwind CSS** - nowoczesne stylowanie
+- **JavaScript (ES6+)** - interaktywność
+- **Vite** - bundler i dev server
+- **AOS** - animacje przy przewijaniu
 
-### Prerequisites
+### Backend:
+- **Firebase Hosting** - hosting statyczny
+- **Firebase Firestore** - baza danych NoSQL
+- **Firebase Functions** - serwerless API (TypeScript)
+- **Firebase Authentication** - autoryzacja
 
-- Node.js (v18 or higher)
-- Firebase CLI
-- Gmail account for email notifications
+### Dodatkowe:
+- **PWA** - Progressive Web App z Service Worker
+- **Responsive Design** - mobile-first
+- **SEO** - meta tagi i Open Graph
+- **Email Templates** - profesjonalne szablony emaili
 
-### Installation
+## 📁 Struktura projektu
 
-1. Clone the repository and install dependencies:
+```
+joanna-rudzinska/
+├── index.html                 # Strona główna
+├── main/                      # Strony publiczne
+│   ├── o-mnie.html
+│   ├── kwalifikacje.html
+│   ├── oferta.html
+│   ├── umow-wizyte.html
+│   ├── kontakt.html
+│   ├── polityka-prywatnosci.html
+│   ├── admin.html            # Panel administracyjny
+│   └── 404.html
+├── src/                       # Kod JavaScript
+│   ├── main.js               # Główny punkt wejścia
+│   ├── app.js                # Rdzeń aplikacji
+│   ├── firebase-config.js    # Konfiguracja Firebase
+│   ├── firebase-service.js   # Serwis Firebase
+│   ├── appointment.js        # System rezerwacji
+│   ├── admin-auth.js         # Autoryzacja admina
+│   ├── admin-panel.js        # Panel administracyjny
+│   ├── schedule-service.js   # Zarządzanie harmonogramem
+│   └── photos/               # Zdjęcia
+├── functions/                 # Firebase Functions
+│   ├── src/index.ts          # Cloud Functions
+│   └── package.json
+├── public/                    # Zasoby publiczne
+│   ├── manifest.json         # PWA manifest
+│   ├── sw.js                 # Service Worker
+│   └── partials/             # Komponenty HTML
+├── package.json
+├── vite.config.js            # Konfiguracja Vite
+└── firestore.rules           # Reguły bezpieczeństwa
+```
+
+## 🚀 Instalacja i uruchomienie
+
+### Wymagania:
+- Node.js 18+
+- npm lub yarn
+- Konto Firebase
+
+### 1. Klonowanie i instalacja:
 ```bash
+git clone <repository-url>
+cd joanna-rudzinska
 npm install
 ```
 
-2. Install Firebase CLI globally:
-```bash
-npm install -g firebase-tools
-```
+### 2. Konfiguracja Firebase:
+1. Utwórz projekt w [Firebase Console](https://console.firebase.google.com/)
+2. Włącz Firestore Database
+3. Włącz Cloud Functions
+4. Skonfiguruj Authentication (Email/Password)
+5. Skopiuj konfigurację do `src/firebase-config.js`
 
-3. Login to Firebase:
-```bash
-firebase login
-```
-
-4. Initialize Firebase project:
-```bash
-firebase init
-```
-Select:
-- Functions (Node.js)
-- Firestore
-- Hosting
-
-5. Install function dependencies:
+### 3. Konfiguracja Cloud Functions:
 ```bash
 cd functions
 npm install
+npm run build
 ```
 
-### Configuration
-
-1. Set up Firebase configuration:
-   - Copy `src/firebase-config.example.js` to `src/firebase-config.js`
-   - Get your Firebase config from Firebase Console
-   - Replace the configuration object with your actual values
-
-2. Set up email configuration:
-   - Copy `functions/.env.example` to `functions/.env`
-   - Configure Gmail credentials:
-     - Enable 2-factor authentication in Gmail
-     - Generate an app password
-     - Update `.env` with your credentials
-
-3. Update Firebase project ID in `.firebaserc` (create this file):
-```json
-{
-  "projects": {
-    "default": "your-project-id"
-  }
-}
-```
-
-### Development
-
-1. Start local development server:
+### 4. Uruchomienie w trybie deweloperskim:
 ```bash
 npm run dev
 ```
 
-2. Start Firebase emulators for testing functions:
+### 5. Budowanie i wdrożenie:
 ```bash
-firebase emulators:start
-```
-
-### Deployment
-
-1. Build the project:
-```bash
+# Budowanie aplikacji
 npm run build
+
+# Wdrożenie na Firebase
+npm run deploy:all
 ```
 
-2. Deploy to Firebase:
+## 🔧 Konfiguracja środowiska
+
+### Zmienne środowiskowe (opcjonalnie):
 ```bash
-firebase deploy
+# .env.local
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+VITE_FIREBASE_PROJECT_ID=your_project_id
 ```
 
-## Project Structure
+### Konfiguracja emaili:
+W `functions/src/index.ts` skonfiguruj:
+- SMTP settings dla Nodemailer
+- Szablony emaili
+- Adresy nadawcy i odbiorcy
 
-```
-├── src/                    # Frontend source files
-│   ├── style.css          # Main styles
-│   ├── main.js           # Main JavaScript
-│   └── appointment.js    # Appointment booking logic
-├── main/                  # HTML pages
-│   ├── o-mnie.html       # About page
-│   ├── oferta.html       # Services page
-│   ├── umow-wizyte.html  # Appointment booking page
-│   └── kontakt.html      # Contact page
-├── public/               # Static assets
-│   └── partials/         # Reusable HTML components
-├── functions/            # Firebase Functions (backend)
-│   ├── index.js         # Main API endpoints
-│   └── package.json     # Function dependencies
-├── dist/                # Built files for deployment
-└── firebase.json        # Firebase configuration
-```
+## 📊 Baza danych (Firestore)
 
-## API Endpoints
+### Kolekcje:
+- `appointments` - rezerwacje wizyt
+- `services` - dostępne usługi
+- `scheduleTemplates` - szablony harmonogramów
+- `monthlySchedules` - harmonogramy miesięczne
+- `blockedSlots` - zablokowane terminy
+- `temporaryBlocks` - tymczasowe blokady
+- `adminUsers` - użytkownicy administratorów
+- `contactMessages` - wiadomości kontaktowe
 
-### POST /api/appointments
-Submit a new appointment request.
+## 🔒 Bezpieczeństwo
 
-**Request Body:**
-```json
-{
-  "name": "Jan Kowalski",
-  "email": "jan@example.com",
-  "phone": "+48123456789",
-  "service": "terapia-indywidualna",
-  "preferredDate": "2024-01-15",
-  "preferredTime": "14:00",
-  "message": "Dodatkowe informacje"
+### Firestore Rules:
+- Autoryzacja dla operacji admina
+- Anonimowy dostęp do publicznych danych
+- Walidacja danych wejściowych
+
+### Rekomendacje:
+1. Regularnie aktualizuj zależności
+2. Monitoruj użycie Firebase
+3. Ustaw limity API
+4. Konfiguruj CORS w Functions
+5. Używaj zmiennych środowiskowych dla wrażliwych danych
+
+## 📱 PWA Features
+
+- **Offline Support** - podstawowa funkcjonalność offline
+- **Install Prompt** - możliwość instalacji na urządzeniach
+- **Background Sync** - synchronizacja w tle
+- **Push Notifications** - (możliwość rozszerzenia)
+
+## 🎨 Customization
+
+### Kolory i style:
+Edytuj `src/style.css` i `vite.config.js`:
+```css
+@theme {
+  --color-primary: #1F2937;
+  --color-accent: #2563EB;
+  --color-background: #F9FAFB;
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Appointment request submitted successfully",
-  "appointmentId": "doc_id"
-}
+### Treść:
+- Strony HTML w katalogu `main/`
+- Komponenty w `public/partials/`
+- Tłumaczenia można dodać w przyszłości
+
+## 🚀 Deployment
+
+### Firebase Hosting:
+```bash
+npm run deploy:all
 ```
 
-### GET /api/appointments
-Get all appointments (admin use).
+### Inne platformy:
+- Netlify
+- Vercel
+- GitHub Pages
 
-**Query Parameters:**
-- `status`: Filter by status (pending, confirmed, cancelled)
-- `limit`: Limit number of results (default: 50)
+## 📈 Monitoring i Analytics
 
-### PATCH /api/appointments/:id
-Update appointment status.
+### Firebase Analytics (opcjonalnie):
+1. Włącz w Firebase Console
+2. Dodaj SDK do aplikacji
+3. Skonfiguruj eventy
 
-**Request Body:**
-```json
-{
-  "status": "confirmed",
-  "notes": "Confirmed for tomorrow at 2 PM"
-}
+### Performance Monitoring:
+- Firebase Performance
+- Lighthouse audits
+- Core Web Vitals
+
+## 🔄 Aktualizacje
+
+### Automatyczne:
+- Service Worker cache invalidation
+- Firebase Functions hot reload
+- Vite HMR w development
+
+### Manualne:
+```bash
+npm update
+npm run build
+npm run deploy:all
 ```
 
-## Cost Optimization
+## 🐛 Troubleshooting
 
-This setup uses free/low-cost services:
+### Częste problemy:
+1. **Błąd Firebase** - sprawdź konfigurację
+2. **CORS errors** - skonfiguruj Functions
+3. **Build errors** - sprawdź zależności
+4. **Email not sending** - sprawdź SMTP settings
 
-- **Firebase Hosting**: Free tier (10 GB storage, 1 GB/month transfer)
-- **Firebase Functions**: Pay-as-you-go (first 2M invocations/month free)
-- **Firestore**: Free tier (1 GB storage, 50K reads, 20K writes/day)
-- **Gmail**: Free email sending (app password required)
+### Logi:
+- Firebase Functions logs: `firebase functions:log`
+- Browser console
+- Network tab
 
-Expected monthly costs: $0-5 for typical small practice usage.
+## 📞 Wsparcie
 
-## Email Setup
+W przypadku problemów:
+1. Sprawdź dokumentację Firebase
+2. Przejrzyj logi błędów
+3. Sprawdź konfigurację środowiska
+4. Upewnij się, że wszystkie zależności są aktualne
 
-1. Create Gmail account or use existing
-2. Enable 2-factor authentication
-3. Generate app password:
-   - Go to Google Account settings
-   - Security → 2-Step Verification → App passwords
-   - Generate password for "Mail"
-4. Use this password in `EMAIL_APP_PASSWORD` environment variable
+## 📄 Licencja
 
-## Security
+Projekt prywatny - wszystkie prawa zastrzeżone.
 
-- Firestore rules allow public appointment creation
-- Email credentials stored in environment variables
-- CORS enabled for frontend domain
-- Input validation and sanitization
-- Rate limiting through Firebase Functions
+---
 
-## Support
-
-For issues or questions, please check the code comments or create an issue in the repository.
-
-## License
-
-Private project - All rights reserved.
+**Autor:** Joanna Rudzińska-Łodyga  
+**Technologie:** Firebase, Vite, Tailwind CSS, JavaScript  
+**Wersja:** 1.0.0
