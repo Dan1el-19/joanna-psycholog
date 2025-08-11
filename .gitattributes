@@ -1,0 +1,4 @@
+# Git attributes - automatyczne filtrowanie wrażliwych danych
+*.js filter=hide-email
+*.html filter=hide-email
+*.ts filter=hide-email

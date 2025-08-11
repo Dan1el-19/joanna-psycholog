@@ -109,7 +109,7 @@ const generateEmailHTML = (title, preheader, content) => {
               <tr>
                   <td class="footer">
                       <p><strong>Joanna Rudzińska-Łodyga</strong></p>
-                      <p><a href="mailto:j.rudzinska@myreflection.pl">j.rudzinska@myreflection.pl</a> | <a href="https://myreflection.pl">myreflection.pl</a></p>
+                      <p><a href="mailto:kontakt@myreflection.pl">kontakt@myreflection.pl</a> | <a href="https://myreflection.pl">myreflection.pl</a></p>
                   </td>
               </tr>
           </table>
@@ -200,7 +200,7 @@ exports.sendAppointmentConfirmation = (0, firestore_1.onDocumentCreated)({
             }
         };
         const therapistEmailDoc = {
-            to: 'j.rudzinska@myreflection.pl',
+            to: 'kontakt@myreflection.pl',
             message: {
                 subject: `Nowa wizyta: ${augmentedData.name} - ${augmentedData.serviceName}`,
                 html: `
@@ -651,7 +651,7 @@ exports.sendContactFormEmail = (0, firestore_1.onDocumentCreated)({
       `;
         // Send email to therapist
         const therapistEmailDoc = {
-            to: 'j.rudzinska@myreflection.pl',
+            to: 'kontakt@myreflection.pl',
             message: {
                 subject: `Formularz kontaktowy: ${getSubjectLabel(subject)} - ${name}`,
                 html: generateEmailHTML('Nowa wiadomość kontaktowa', `Otrzymałaś nową wiadomość od ${name}.`, therapistEmailContent),
