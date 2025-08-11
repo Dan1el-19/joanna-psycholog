@@ -4,9 +4,9 @@ service cloud.firestore {
 
     // Helper function to check if user is admin
     function isAdmin() {
-      // Check if user is authenticated and not anonymous
-      return request.auth != null && 
-             request.auth.token.firebase.sign_in_provider != 'anonymous';
+      // Check if user's UID exists in the adminUsers collection
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/adminUsers/$(request.auth.uid));
     }
 
     // Helper function to check if user is authenticated (anonymous or admin)
@@ -26,9 +26,12 @@ service cloud.firestore {
       // Anonymous users can create appointments (public form)
       allow create: if isAuthenticated();
       
-      // Anonymous users can read appointments for calendar availability (limited fields)
       // Admins can read all appointment details
-      allow read, list: if isAuthenticated();
+      // A user can read their own appointment if they provide the correct reservation token
+      allow read: if isAdmin() || (resource.data.reservationToken == request.query.get('token'));
+
+      // Only admins can list all appointments
+      allow list: if isAdmin();
       
       // Only admins can update appointments
       allow update: if isAdmin();
