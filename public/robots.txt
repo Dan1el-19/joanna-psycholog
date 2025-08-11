@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 
 # Disallow admin/private interfaces
+Disallow: /partials/
 Disallow: /admin
 Disallow: /schedule-admin
 Disallow: /manage-reservation

@@ -11,41 +11,37 @@
       {
         "source": "**",
         "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://myreflection.pl; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://firebasestorage.googleapis.com; connect-src 'self' https://firestore.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://joanna-psycholog-default-rtdb.europe-west1.firebasedatabase.app wss://s-usc1c-nss-2030.firebaseio.com https://europe-central2-joanna-psycholog.cloudfunctions.net https://www.gstatic.com https://firebase.googleapis.com https://firebaseapp.com https://myreflection.pl https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' https://myreflection.pl; object-src 'none'; base-uri 'self'; form-action 'self';"
-          },
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://myreflection.pl; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://firebasestorage.googleapis.com; connect-src 'self' https://firestore.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://joanna-psycholog-default-rtdb.europe-west1.firebasedatabase.app wss://s-usc1c-nss-2030.firebaseio.com https://europe-central2-joanna-psycholog.cloudfunctions.net https://www.gstatic.com https://firebase.googleapis.com https://firebaseapp.com https://myreflection.pl https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' https://myreflection.pl; object-src 'none'; base-uri 'self'; form-action 'self';" },
           { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
           { "key": "X-Content-Type-Options", "value": "nosniff" },
           { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-          { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(), payment=()" }
+          { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(), payment=()" },
+          { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" }
         ]
-      }
+      },
+      { "source": "/assets/**", "headers": [ { "key": "Cache-Control", "value": "public,max-age=31536000,immutable" } ] },
+      { "source": "/src/photos/**", "headers": [ { "key": "Cache-Control", "value": "public,max-age=31536000" } ] },
+      { "source": "**/*.html", "headers": [ { "key": "Cache-Control", "value": "public,max-age=300,must-revalidate" } ] },
+      { "source": "/sw.js", "headers": [ { "key": "Cache-Control", "value": "no-cache" } ] },
+      { "source": "/sitemap.xml", "headers": [ { "key": "Cache-Control", "value": "public,max-age=86400" } ] }
+  , { "source": "/partials/**", "headers": [ { "key": "X-Robots-Tag", "value": "noindex, nofollow" } ] }
+    ],
+    "redirects": [
+      { "source": "/index.html", "destination": "/", "type": 301 }
     ],
     "rewrites": [
+      { "source": "/", "destination": "index.html" },
       { "source": "/o-mnie", "destination": "/main/o-mnie.html" },
       { "source": "/kwalifikacje", "destination": "/main/kwalifikacje.html" },
       { "source": "/oferta", "destination": "/main/oferta.html" },
       { "source": "/umow-wizyte", "destination": "/main/umow-wizyte.html" },
       { "source": "/kontakt", "destination": "/main/kontakt.html" },
       { "source": "/polityka-prywatnosci", "destination": "/main/polityka-prywatnosci.html" },
-  { "source": "/manage-reservation/**", "destination": "/main/manage-reservation.html" },
-      
-      
-      {
-        "source": "/admin{,/**}",
-        "destination": "/main/admin.html"
-      },
-      {
-        "source": "/schedule-admin{,/**}",
-        "destination": "/main/admin.html"
-      },
-      {
-        "source": "**",
-        "destination": "/main/404.html"
-      }
-
-    ]
+      { "source": "/manage-reservation/**", "destination": "/main/manage-reservation.html" },
+      { "source": "/admin{,/**}", "destination": "/main/admin.html" },
+      { "source": "/schedule-admin{,/**}", "destination": "/main/admin.html" }
+    ],
+    "404": "/main/404.html"
   },
   "functions": {
     "source": "functions",

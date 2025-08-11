@@ -280,7 +280,7 @@ class AppointmentBooking {
       
       if (response.success) {
         // Cloud Functions will automatically send confirmation emails
-        this.showMessage('Dziękuję! Twoje zgłoszenie zapytanie zostało wysłane.', 'success');
+        this.showMessage('Dziękuję! Twoje zgłoszenie zostało wysłane.', 'success');
         this.form.reset();
         this.clearTimeSlots();
         this.clearTemporaryBlock();

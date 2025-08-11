@@ -647,7 +647,7 @@ exports.sendContactFormEmail = (0, firestore_1.onDocumentCreated)({
           </p>
         </div>
 
-        <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong><br>Psycholog</p>
+  <p>Serdecznie pozdrawiam,<br><strong>Joanna Rudzińska-Łodyga</strong><br>Terapeuta</p>
       `;
         // Send email to therapist
         const therapistEmailDoc = {

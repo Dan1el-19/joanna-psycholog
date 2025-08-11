@@ -17,15 +17,15 @@
       "type": "image/x-icon"
     },
     {
-      "src": "/src/photos/reflection.jpg",
+      "src": "/src/photos/Logo192x192B.png",
       "sizes": "192x192",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/src/photos/reflection.jpg",
+      "src": "/src/photos/Logo512x512B.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
@@ -37,7 +37,7 @@
       "url": "/umow-wizyte",
       "icons": [
         {
-          "src": "/src/photos/reflection.jpg",
+          "src": "/src/photos/Logo192x192B.png",
           "sizes": "96x96"
         }
       ]
@@ -49,7 +49,7 @@
       "url": "/kontakt",
       "icons": [
         {
-          "src": "/src/photos/reflection.jpg",
+          "src": "/src/photos/Logo192x192B.png",
           "sizes": "96x96"
         }
       ]
