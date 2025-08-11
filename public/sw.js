@@ -14,12 +14,12 @@ const STATIC_ASSETS = [
   '/src/firebase-config.js',
   '/partials/_header.html',
   '/partials/_footer.html',
-  '/src/photos/reflection.jpg',
-  '/src/photos/praktyki.jpg',
-  '/src/photos/rok1.jpg',
-  '/src/photos/rok2.jpg',
-  '/src/photos/rok3.jpg',
-  '/src/photos/warsztaty.jpg'
+  '/photos/reflection.jpg',
+  '/photos/praktyki.jpg',
+  '/photos/rok1.jpg',
+  '/photos/rok2.jpg',
+  '/photos/rok3.jpg',
+  '/photos/warsztaty.jpg'
 ];
 
 // Zasoby Firebase do cache'owania

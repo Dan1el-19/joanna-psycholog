@@ -6,6 +6,13 @@ import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { getPerformance } from "firebase/performance";
 
+// Helper to (lightly) mask sensitive-ish values for logging (even though Firebase keys are public)
+function mask(v) {
+  if (!v || typeof v !== 'string') return v;
+  if (v.length <= 8) return v[0] + '***';
+  return v.slice(0, 4) + '***' + v.slice(-4);
+}
+
 // Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
