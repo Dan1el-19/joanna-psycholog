@@ -464,7 +464,7 @@ class AdminNavigation {
   verifyDatabasePin() {
     const pinInput = document.getElementById('database-pin-input');
     const enteredPin = pinInput.value.trim();
-    const correctPin = '7072';
+    const correctPin = import.meta.env.VITE_ADMIN_DATABASE_PIN || '';
     
     if (enteredPin === correctPin) {
       // Hide PIN section and show management section
