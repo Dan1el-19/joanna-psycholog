@@ -374,24 +374,68 @@ const defaultAllowed = [
     'http://localhost:5173'
 ];
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowed.join(',')).split(',').map(s => s.trim()).filter(Boolean);
-// Dynamic CORS allowing only whitelisted origins. Allow requests with no origin (e.g., server-side requests).
+// Dynamic CORS allowing only whitelisted origins. We do NOT allow credentials here to avoid leaking auth.
 app.use((req, res, next) => {
     const origin = req.header('Origin');
     if (!origin) {
-        // No Origin header (curl, server-side); allow
+        // No Origin header (curl, server-side); allow but use wildcard and minimal headers
         res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
         return next();
     }
     if (allowedOrigins.includes(origin)) {
         res.header('Access-Control-Allow-Origin', origin);
         res.header('Vary', 'Origin');
-        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        // Do not set Access-Control-Allow-Credentials to true for this public endpoint
         return next();
     }
     // Not allowed by CORS
     res.status(403).json({ success: false, error: 'Origin not allowed by CORS' });
 });
 app.use(express_1.default.json());
+// Support hosting rewrites that forward paths with a leading `/api` prefix.
+// Some hosting setups proxy `/api/public/availability` to the function without
+// removing the `/api` prefix. To be tolerant, strip a single leading `/api` so
+// existing route definitions (e.g. `/public/availability`) still match.
+app.use((req, res, next) => {
+    try {
+        if (req.path && req.path.startsWith('/api/')) {
+            req.url = req.url.replace(/^\/api/, '') || '/';
+        }
+    }
+    catch (_a) {
+        // ignore and continue
+    }
+    next();
+});
+// Basic in-memory rate limiter (per-IP). Limits to 60 requests per minute per IP.
+// This is a best-effort protection against abuse; note: in-memory limits won't be shared across instances.
+const rateWindowMs = 60 * 1000;
+const maxRequestsPerWindow = 60;
+const ipCounters = new Map();
+app.use((req, res, next) => {
+    try {
+        const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+        const now = Date.now();
+        const entry = ipCounters.get(ip);
+        if (!entry || now > entry.resetAt) {
+            ipCounters.set(ip, { count: 1, resetAt: now + rateWindowMs });
+            return next();
+        }
+        if (entry.count >= maxRequestsPerWindow) {
+            res.status(429).json({ success: false, error: 'Rate limit exceeded' });
+            return;
+        }
+        entry.count += 1;
+        return next();
+    }
+    catch (_a) {
+        return next();
+    }
+});
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'Appointment booking API is running' });
 });
@@ -400,9 +444,23 @@ app.get('/health', (req, res) => {
 app.get('/public/availability', async (req, res) => {
     try {
         const date = String(req.query.date || '');
+        const token = String(req.query.token || '');
         if (!date) {
             res.status(400).json({ success: false, error: 'Missing required date parameter' });
             return;
+        }
+        // Validate date format YYYY-MM-DD to avoid injection
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            res.status(400).json({ success: false, error: 'Invalid date format; expected YYYY-MM-DD' });
+            return;
+        }
+        // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query must match
+        const apiSecret = process.env.PUBLIC_API_SECRET || '';
+        if (apiSecret) {
+            if (!token || token !== apiSecret) {
+                res.status(403).json({ success: false, error: 'Invalid or missing token' });
+                return;
+            }
         }
         // Support a "range" query param: if range=long return a 30-day window starting at `date`.
         const range = String(req.query.range || 'single');
@@ -439,8 +497,8 @@ app.get('/public/availability', async (req, res) => {
         const [apptSnap, tempSnap] = await Promise.all([apptPromise, tempPromise]);
         const appointments = apptSnap.docs.map(doc => {
             const d = doc.data();
+            // Do not expose internal Firestore document IDs publicly; return only minimal non-identifying info
             return {
-                id: doc.id,
                 confirmedTime: d.confirmedTime || null,
                 preferredTime: d.preferredTime || null,
                 service: d.service || null

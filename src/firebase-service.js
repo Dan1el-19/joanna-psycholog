@@ -134,7 +134,7 @@ class FirebaseService {
         return cached.slots;
       }
 
-      // Fetch temporary blocks for other sessions
+  // Fetch temporary blocks for other sessions
       const tempBlockedSlots = new Set();
       if (excludeSessionId) {
           try {
@@ -217,6 +217,81 @@ class FirebaseService {
       }
 
       return [];
+    }
+  }
+
+  /**
+   * Batch-fetch availability for an entire month using server endpoint (range=long).
+   * Returns an array of slot objects similar to getAvailableTimeSlots but for the whole month.
+   */
+  async getAvailableTimeSlotsForMonth(year, month, excludeSessionId = null) {
+    const monthKey = `month_${year}_${String(month).padStart(2, '0')}_${excludeSessionId || 'none'}`;
+    const cached = this.slotsCache.get(monthKey);
+    if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) return cached.slots;
+
+    // Build first-of-month date
+    const firstDate = `${year}-${String(month).padStart(2, '0')}-01`;
+
+    try {
+      // Prefer hosting /api path so routing and CORS are handled by Hosting rewrites
+      const functionBase = `${location.origin}/api`;
+      const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(firstDate)}&range=long`);
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      const data = await resp.json();
+      if (!data || !data.success) throw new Error('Invalid server response');
+
+      // server returns { appointments: [...], temporaryBlocks: [...] }
+      // Convert to per-day slot structures expected by calendar: build minimal slot array
+      const slotsByDate = new Map();
+
+      // From appointments
+      (data.appointments || []).forEach(a => {
+        const d = a.confirmedTime || a.preferredTime || null;
+        const date = a.preferredDate || a.confirmedDate || null;
+        if (!date || !d) return;
+        const entry = {
+          date,
+          time: d,
+          isAvailable: false,
+          isBooked: true,
+          isTemporarilyBlocked: false
+        };
+        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
+        slotsByDate.get(date).push(entry);
+      });
+
+      // From temporaryBlocks
+      (data.temporaryBlocks || []).forEach(tb => {
+        const date = tb.date;
+        const entry = {
+          date,
+          time: tb.time,
+          isAvailable: false,
+          isBooked: false,
+          isTemporarilyBlocked: true
+        };
+        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
+        slotsByDate.get(date).push(entry);
+      });
+
+      // Flatten into array
+      const result = [];
+  slotsByDate.forEach(arr => result.push(...arr));
+
+      this.slotsCache.set(monthKey, { slots: result, timestamp: Date.now() });
+      return result;
+    } catch (err) {
+      console.warn('Month availability fallback failed, falling back to per-day computation', err);
+      // Fallback: compute per-day locally by calling getAvailableTimeSlots for each day (keeps previous behavior)
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const results = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const daySlots = await this.getAvailableTimeSlots(dateStr, excludeSessionId);
+        results.push(...daySlots);
+      }
+      this.slotsCache.set(monthKey, { slots: results, timestamp: Date.now() });
+      return results;
     }
   }
 

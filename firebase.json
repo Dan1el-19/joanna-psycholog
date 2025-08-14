@@ -39,7 +39,7 @@
       { "source": "/manage-reservation/**", "destination": "/main/manage-reservation.html" },
       { "source": "/admin{,/**}", "destination": "/main/admin.html" },
       { "source": "/schedule-admin{,/**}", "destination": "/main/admin.html" }
-  ,{ "source": "/api/**", "function": "api" }
+  ,{ "source": "/api/**", "run": { "serviceId": "api", "region": "europe-central2" } }
     ],
     "404": "/main/404.html"
   },

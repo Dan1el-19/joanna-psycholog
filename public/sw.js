@@ -42,15 +42,16 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Caching static assets');
-        return cache.addAll(STATIC_ASSETS);
+        // Use addAllSettled-like behavior: try to add all but don't fail the install on single asset failure
+        const promises = STATIC_ASSETS.map(asset => cache.add(asset).catch(err => ({ ok: false, asset, err })));
+        return Promise.allSettled(promises);
       })
       .then(() => {
-        console.log('Service Worker: Installed successfully');
+        // minimal logging
         return self.skipWaiting();
       })
-      .catch((error) => {
-        console.error('Service Worker: Installation failed', error);
+      .catch(() => {
+        // ignore install cache errors silently to avoid noisy logs in production
       })
   );
 });
