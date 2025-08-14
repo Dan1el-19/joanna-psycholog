@@ -5,7 +5,8 @@
 
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onCall } from 'firebase-functions/v2/https';
+import { onCall, onRequest } from 'firebase-functions/v2/https';
+import express, { Request, Response } from 'express';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -62,6 +63,39 @@ interface Service {
   name: string;
   price: number;
   duration: number;
+}
+
+// Types used by public availability computation
+interface BlockedSlot {
+  id?: string;
+  date?: string;
+  time?: string;
+  allDay?: boolean;
+  startDate?: string;
+  endDate?: string;
+  isAllDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface MonthlySchedule {
+  id?: string;
+  year?: number;
+  month?: number;
+  templateId?: string;
+  blockedSlots?: BlockedSlot[];
+}
+
+interface ScheduleTemplate {
+  id?: string;
+  schedule?: Record<string, string[]>;
+}
+
+// Minimal shape used by public availability endpoint
+interface MinimalAppointmentData {
+  confirmedTime?: string | null;
+  preferredTime?: string | null;
+  service?: string | null;
 }
 
 // --- Confirm Appointment Email Trigger ---
@@ -455,6 +489,212 @@ export const sendAppointmentReminders = onSchedule(
     }
   }
 );
+
+// --- Public HTTP API (Express) ---
+const app = express();
+
+// Configure allowed origins via environment variable `ALLOWED_ORIGINS` (comma separated).
+// Defaults to common site origins used by this project.
+const defaultAllowed = [
+  'https://myreflection.pl',
+  'https://www.myreflection.pl',
+  'https://joanna-psycholog.web.app',
+  'http://localhost:5173'
+];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowed.join(',')).split(',').map(s => s.trim()).filter(Boolean);
+
+// Dynamic CORS allowing only whitelisted origins. Allow requests with no origin (e.g., server-side requests).
+app.use((req, res, next) => {
+  const origin = req.header('Origin');
+  if (!origin) {
+    // No Origin header (curl, server-side); allow
+    res.header('Access-Control-Allow-Origin', '*');
+    return next();
+  }
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return next();
+  }
+  // Not allowed by CORS
+  res.status(403).json({ success: false, error: 'Origin not allowed by CORS' });
+});
+
+app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Appointment booking API is running' });
+});
+
+// Public availability endpoint used by the booking UI when direct Firestore reads are restricted
+// Returns minimal appointment info and temporary blocks for a given date
+app.get('/public/availability', async (req: Request, res: Response) => {
+  try {
+    const date = String(req.query.date || '');
+    if (!date) {
+      res.status(400).json({ success: false, error: 'Missing required date parameter' });
+      return;
+    }
+    // Support a "range" query param: if range=long return a 30-day window starting at `date`.
+    const range = String(req.query.range || 'single');
+    const cacheHint = String(req.query.cache || 'short');
+
+    // Helper: add days to YYYY-MM-DD
+    const addDays = (iso: string, days: number) => {
+      const d = new Date(iso + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+
+    let apptPromise;
+    let tempPromise;
+
+    if (range === 'long') {
+      const endDate = addDays(date, 30);
+      apptPromise = db.collection('appointments')
+        .where('preferredDate', '>=', date)
+        .where('preferredDate', '<=', endDate)
+        .where('status', 'in', ['pending', 'confirmed'])
+        .get();
+
+      tempPromise = db.collection('temporaryBlocks')
+        .where('date', '>=', date)
+        .where('date', '<=', endDate)
+        .get();
+    } else {
+      apptPromise = db.collection('appointments')
+        .where('preferredDate', '==', date)
+        .where('status', 'in', ['pending', 'confirmed'])
+        .get();
+
+      tempPromise = db.collection('temporaryBlocks')
+        .where('date', '==', date)
+        .get();
+    }
+
+    const [apptSnap, tempSnap] = await Promise.all([apptPromise, tempPromise]);
+
+  const appointments = apptSnap.docs.map(doc => {
+      const d = doc.data() as MinimalAppointmentData;
+      return {
+        id: doc.id,
+        confirmedTime: d.confirmedTime || null,
+        preferredTime: d.preferredTime || null,
+        service: d.service || null
+      };
+    });
+
+    const temporaryBlocks = tempSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }));
+
+    // Compute admin slots for the requested date using Admin SDK (secure)
+    const adminSlots = [] as string[];
+    try {
+  const [year, month] = date.split('-').map(Number);
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate().toString().padStart(2, '0')}`;
+
+      // Try to find a monthlySchedule for the month
+      const monthlyQuery = await db.collection('monthlySchedules')
+        .where('year', '==', year)
+        .where('month', '==', month)
+        .limit(1)
+        .get();
+
+  let templateId: string | null = null;
+  let monthlySchedule: MonthlySchedule | null = null;
+      if (!monthlyQuery.empty) {
+        const docSnap = monthlyQuery.docs[0];
+        monthlySchedule = docSnap.data();
+    templateId = (monthlySchedule.templateId as string) || null;
+      } else {
+        // Fallback: check templateAssignments collection
+        const assignQuery = await db.collection('templateAssignments')
+          .where('year', '==', year)
+          .where('month', '==', month)
+          .limit(1)
+          .get();
+        if (!assignQuery.empty) {
+          templateId = assignQuery.docs[0].data().templateId || null;
+        }
+      }
+
+      if (templateId) {
+        const templateDoc = await db.collection('scheduleTemplates').doc(templateId).get();
+        if (templateDoc.exists) {
+          const template = templateDoc.data() as ScheduleTemplate | null;
+
+          // Fetch global blocked slots for the month
+          const blockedQuery = await db.collection('blockedSlots')
+            .where('startDate', '>=', startDate)
+            .where('startDate', '<=', endDate)
+            .get();
+          const globalBlocked = blockedQuery.docs.map(d => d.data() as BlockedSlot);
+
+          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const daysInMonth = new Date(year, month, 0).getDate();
+
+          for (let d = 1; d <= daysInMonth; d++) {
+            const currentDate = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dow = new Date(year, month - 1, d).getDay();
+            const dayName = days[dow];
+
+            const daySchedule = (template && template.schedule && template.schedule[dayName]) || [];
+
+            // Check if date is blocked in monthlySchedule
+            const isDateBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots!.some((b: BlockedSlot) => b.date === currentDate && (!b.time || b.allDay)));
+
+            // Check global blocked ranges
+            const isDateBlockedGlobally = globalBlocked.some((b: BlockedSlot) => {
+              const start = b.startDate || '';
+              const end = b.endDate || b.startDate || '';
+              if (!start || !end) return false;
+              return currentDate >= start && currentDate <= end && (b.isAllDay || (!b.startTime && !b.endTime));
+            });
+
+            if (isDateBlockedInMonthly || isDateBlockedGlobally) continue;
+
+            daySchedule.forEach((t: string) => {
+              // Check time-level blocked
+              const isTimeBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots!.some((b: BlockedSlot) => b.date === currentDate && b.time === t));
+              const isTimeBlockedGlobally = globalBlocked.some((b: BlockedSlot) => {
+                const start = b.startDate || '';
+                const end = b.endDate || b.startDate || '';
+                if (!start || !end) return false;
+                if (currentDate < start || currentDate > end) return false;
+                if (b.isAllDay || (!b.startTime && !b.endTime)) return true;
+                if (b.startTime && b.endTime) return t >= b.startTime && t <= b.endTime;
+                return false;
+              });
+              if (!isTimeBlockedInMonthly && !isTimeBlockedGlobally) {
+                if (currentDate === date) adminSlots.push(t);
+              }
+            });
+          }
+        }
+      }
+    } catch (adminErr) {
+      console.warn('Could not compute admin slots for public availability:', adminErr);
+    }
+
+    // Cache control: short (default) or long (for public caching/CDN)
+    // short: browser max-age 60s, s-maxage 300s; long: browser max-age 60s, s-maxage 86400s (1 day)
+    if (cacheHint === 'long') {
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=86400');
+    } else {
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    }
+
+    res.json({ success: true, appointments, temporaryBlocks });
+    return;
+  } catch (error) {
+    console.error('Error in public availability endpoint:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+    return;
+  }
+});
+
+export const api = onRequest({ region: 'europe-central2' }, app);
 
 export const sendCancellationEmail = onDocumentUpdated(
   {

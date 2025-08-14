@@ -38,6 +38,8 @@ class FirebaseService {
     this.servicesCache = null;
     this.servicesCacheTimeout = 5 * 60 * 1000;
     this.servicesCacheTimestamp = 0;
+  // Flag to avoid spamming the console with repeated permission-denied messages
+  this._permissionDeniedWarned = false;
   }
 
   // ##################################################################
@@ -195,7 +197,25 @@ class FirebaseService {
       return result;
 
     } catch (error) {
-      console.error('Error getting available time slots with advanced logic:', error);
+      // Detect permission errors and avoid spamming the console/network
+      const isPermissionError = (error && (error.code === 'permission-denied' || (error.message && /permission/i.test(error.message))));
+      if (isPermissionError && !this._permissionDeniedWarned) {
+        console.warn('Firebase permission denied when fetching available slots. Public pages may not have access to scheduling data.');
+        this._permissionDeniedWarned = true;
+      } else if (!isPermissionError) {
+        console.error('Error getting available time slots with advanced logic:', error);
+      }
+
+      // Cache empty result briefly to avoid repeated failing requests from the UI
+      try {
+        const cacheKey = `advanced_${date}_${excludeSessionId || 'none'}`;
+        this.slotsCache.set(cacheKey, { slots: [], timestamp: Date.now() });
+      } catch (_) {
+        // reference the variable so linters don't flag it as unused
+        void _;
+        // ignore cache set failures
+      }
+
       return [];
     }
   }
@@ -273,13 +293,43 @@ class FirebaseService {
   }
 
   async getAppointmentsForDate(date) {
-    const q = query(
-      this.appointmentsCollection,
-      where('preferredDate', '==', date),
-      where('status', 'in', ['pending', 'confirmed'])
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      const q = query(
+        this.appointmentsCollection,
+        where('preferredDate', '==', date),
+        where('status', 'in', ['pending', 'confirmed'])
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      const isPermissionError = (error && (error.code === 'permission-denied' || (error.message && /permission/i.test(error.message))));
+      if (isPermissionError) {
+        if (!this._permissionDeniedWarned) {
+          console.warn('Firebase permission denied when fetching appointments for date. Falling back to server endpoint.');
+          this._permissionDeniedWarned = true;
+        }
+
+        // Try server endpoint as a fallback (functions using Admin SDK)
+        try {
+          // Use the direct Cloud Function URL (region-specific) to avoid relying on hosting rewrites
+          const functionBase = 'https://europe-central2-joanna-psycholog.cloudfunctions.net/api';
+          const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(date)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.appointments)) {
+              return data.appointments.map(a => ({ id: a.id, ...a }));
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('Fallback server availability endpoint failed:', fetchErr);
+        }
+      } else {
+        console.error('Error fetching appointments for date:', error);
+      }
+
+      // Safe fallback
+      return [];
+    }
   }
 
   async getAdminSlotsForDate(date) {

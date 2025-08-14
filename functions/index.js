@@ -149,6 +149,43 @@ app.get('/appointments', async (req, res) => {
   }
 });
 
+// Public availability endpoint used by the booking UI when direct Firestore reads are restricted
+// Returns minimal appointment info and temporary blocks for a given date
+app.get('/public/availability', async (req, res) => {
+  try {
+    const date = req.query.date;
+    if (!date) return res.status(400).json({ success: false, error: 'Missing required date parameter' });
+
+    // Fetch appointments that affect availability
+    const apptQuery = db.collection('appointments')
+      .where('preferredDate', '==', date)
+      .where('status', 'in', ['pending', 'confirmed']);
+
+    const [apptSnap, tempSnap] = await Promise.all([
+      apptQuery.get(),
+      db.collection('temporaryBlocks').where('date', '==', date).get()
+    ]);
+
+    const appointments = [];
+    apptSnap.forEach(doc => {
+      const d = doc.data();
+      appointments.push({
+        id: doc.id,
+        confirmedTime: d.confirmedTime || null,
+        preferredTime: d.preferredTime || null,
+        service: d.service || null
+      });
+    });
+
+    const temporaryBlocks = tempSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    res.json({ success: true, appointments, temporaryBlocks });
+  } catch (error) {
+    console.error('Error in public availability endpoint:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 // Update appointment status
 app.patch('/appointments/:id', async (req, res) => {
   try {

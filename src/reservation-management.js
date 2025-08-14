@@ -185,7 +185,7 @@ class ReservationManagement {
       return `
         <div class="text-center">
           <p class="text-orange-600 font-medium mb-2"><svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path></svg>Anulowanie możliwe do 24h przed wizytą</p>
-          <p class="text-sm text-gray-600">W przypadku pilnej potrzeby anulowania skontaktuj się bezpośrednio: <a href="mailto:j.rudzinska@myreflection.pl" class="text-blue-600 hover:text-blue-800">j.rudzinska@myreflection.pl</a></p>
+          <p class="text-sm text-gray-600">W przypadku pilnej potrzeby anulowania skontaktuj się bezpośrednio: <a href="mailto:kontakt@myreflection.pl" class="text-blue-600 hover:text-blue-800">kontakt@myreflection.pl</a></p>
         </div>`;
     }
   }
@@ -282,7 +282,7 @@ class ReservationManagement {
     } catch (error) {
       console.error('Error rescheduling appointment:', error);
       if (error.message && error.message.includes('maksymalną liczbę przełożeń')) {
-        this.showError(error.message + '<br>W razie potrzeby napisz na <a href="mailto:j.rudzinska@myreflection.pl" class="text-blue-600 underline">j.rudzinska@myreflection.pl</a>');
+        this.showError(error.message + '<br>W razie potrzeby napisz na <a href="mailto:kontakt@myreflection.pl" class="text-blue-600 underline">kontakt@myreflection.pl</a>');
       } else {
         this.showError(error.message || 'Błąd podczas zmiany terminu.');
       }
