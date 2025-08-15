@@ -3,11 +3,49 @@
  * Firebase Cloud Functions for Appointment Email System
  * VERSION 2.1 - Complete Overhaul with Professional Email Templates for ALL functions
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAnonymousUsers = exports.deleteCollection = exports.dailyMaintenanceCleanup = exports.sendContactFormEmail = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = exports.sendConfirmEmail = void 0;
+exports.deleteAnonymousUsers = exports.deleteCollection = exports.dailyMaintenanceCleanup = exports.sendContactFormEmail = exports.sendPaymentStatusEmail = exports.sendRescheduleEmail = exports.sendCancellationEmail = exports.api = exports.sendAppointmentReminders = exports.sendAppointmentApproval = exports.sendAppointmentConfirmation = exports.sendConfirmEmail = void 0;
 const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
+const express_1 = __importDefault(require("express"));
+const crypto = __importStar(require("crypto"));
 const app_1 = require("firebase-admin/app");
 const firestore_2 = require("firebase-admin/firestore");
 const auth_1 = require("firebase-admin/auth");
@@ -359,6 +397,296 @@ exports.sendAppointmentReminders = (0, scheduler_1.onSchedule)({
         console.error('Error sending appointment reminders:', error);
     }
 });
+// --- Public HTTP API (Express) ---
+const app = (0, express_1.default)();
+// Configure allowed origins via environment variable `ALLOWED_ORIGINS` (comma separated).
+// Defaults to common site origins used by this project.
+const defaultAllowed = [
+    'https://myreflection.pl',
+    'https://www.myreflection.pl',
+    'https://joanna-psycholog.web.app',
+    'http://localhost:5173'
+];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowed.join(',')).split(',').map(s => s.trim()).filter(Boolean);
+// Dynamic CORS allowing only whitelisted origins. We do NOT allow credentials here to avoid leaking auth.
+app.use((req, res, next) => {
+    const origin = req.header('Origin');
+    if (!origin) {
+        // No Origin header (curl, server-side); allow but use wildcard and minimal headers
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        return next();
+    }
+    if (allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Vary', 'Origin');
+        res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        // Do not set Access-Control-Allow-Credentials to true for this public endpoint
+        return next();
+    }
+    // Not allowed by CORS
+    res.status(403).json({ success: false, error: 'Origin not allowed by CORS' });
+});
+app.use(express_1.default.json());
+// Support hosting rewrites that forward paths with a leading `/api` prefix.
+// Some hosting setups proxy `/api/public/availability` to the function without
+// removing the `/api` prefix. To be tolerant, strip a single leading `/api` so
+// existing route definitions (e.g. `/public/availability`) still match.
+app.use((req, res, next) => {
+    try {
+        if (req.path && req.path.startsWith('/api/')) {
+            req.url = req.url.replace(/^\/api/, '') || '/';
+        }
+    }
+    catch (_a) {
+        // ignore and continue
+    }
+    next();
+});
+// Basic in-memory rate limiter (per-IP). Limits to 60 requests per minute per IP.
+// This is a best-effort protection against abuse; note: in-memory limits won't be shared across instances.
+const rateWindowMs = 60 * 1000;
+const maxRequestsPerWindow = 60;
+const ipCounters = new Map();
+app.use((req, res, next) => {
+    try {
+        const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+        const now = Date.now();
+        const entry = ipCounters.get(ip);
+        if (!entry || now > entry.resetAt) {
+            ipCounters.set(ip, { count: 1, resetAt: now + rateWindowMs });
+            return next();
+        }
+        if (entry.count >= maxRequestsPerWindow) {
+            res.status(429).json({ success: false, error: 'Rate limit exceeded' });
+            return;
+        }
+        entry.count += 1;
+        return next();
+    }
+    catch (_a) {
+        return next();
+    }
+});
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', message: 'Appointment booking API is running' });
+});
+// Public availability endpoint used by the booking UI when direct Firestore reads are restricted
+// Returns minimal appointment info and temporary blocks for a given date
+app.get('/public/availability', async (req, res) => {
+    try {
+        const date = String(req.query.date || '');
+        // Accept token either as query param `token` or as Authorization header `Bearer <token>`
+        let token = String(req.query.token || '');
+        try {
+            const authHeader = String(req.header('Authorization') || req.header('authorization') || '').trim();
+            if (!token && authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+                token = authHeader.slice(7).trim();
+            }
+        }
+        catch (_a) {
+            // ignore header parsing errors and continue with query token
+        }
+        if (!date) {
+            res.status(400).json({ success: false, error: 'Missing required date parameter' });
+            return;
+        }
+        // Validate date format YYYY-MM-DD to avoid injection
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            res.status(400).json({ success: false, error: 'Invalid date format; expected YYYY-MM-DD' });
+            return;
+        }
+        // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query or Authorization header must match
+        const apiSecret = process.env.PUBLIC_API_SECRET || '';
+        if (apiSecret) {
+            try {
+                // Safe debug: log only presence, lengths and sha256 hashes to diagnose mismatches without revealing values
+                const secretHash = crypto.createHash('sha256').update(apiSecret).digest('hex').slice(0, 12);
+                const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex').slice(0, 12) : 'missing';
+                // normalize variants
+                const secretTrim = String(apiSecret).trim();
+                const secretNoNL = String(apiSecret).replace(/\r|\n/g, '');
+                const secretNoPad = String(apiSecret).replace(/=+$/, '');
+                const tokenTrim = String(token || '').trim();
+                const tokenNoNL = String(token || '').replace(/\r|\n/g, '');
+                const tokenNoPad = String(token || '').replace(/=+$/, '');
+                const secretTrimHash = crypto.createHash('sha256').update(secretTrim).digest('hex').slice(0, 12);
+                const secretNoNLHash = crypto.createHash('sha256').update(secretNoNL).digest('hex').slice(0, 12);
+                const secretNoPadHash = crypto.createHash('sha256').update(secretNoPad).digest('hex').slice(0, 12);
+                const tokenTrimHash = token ? crypto.createHash('sha256').update(tokenTrim).digest('hex').slice(0, 12) : 'missing';
+                const tokenNoNLHash = token ? crypto.createHash('sha256').update(tokenNoNL).digest('hex').slice(0, 12) : 'missing';
+                const tokenNoPadHash = token ? crypto.createHash('sha256').update(tokenNoPad).digest('hex').slice(0, 12) : 'missing';
+                // Also log whether an Authorization header was present and the raw header length (but not its value)
+                const rawAuthHeader = String(req.header('Authorization') || req.header('authorization') || '');
+                console.log('PUBLIC_API_SECRET present:', true, 'len=', String(apiSecret.length), 'sha12=', secretHash);
+                console.log('PUBLIC_API_SECRET variants: trim(len=' + String(secretTrim.length) + ' sha12=' + secretTrimHash + '), noNL(len=' + String(secretNoNL.length) + ' sha12=' + secretNoNLHash + '), noPad(len=' + String(secretNoPad.length) + ' sha12=' + secretNoPadHash + ')');
+                console.log('Authorization header present:', rawAuthHeader.length > 0, 'authHeaderLen=', String(rawAuthHeader.length));
+                console.log('incoming token present:', Boolean(token), 'len=', String((token || '').length), 'sha12=', tokenHash);
+                console.log('incoming token variants: trim(len=' + String(tokenTrim.length) + ' sha12=' + tokenTrimHash + '), noNL(len=' + String(tokenNoNL.length) + ' sha12=' + tokenNoNLHash + '), noPad(len=' + String(tokenNoPad.length) + ' sha12=' + tokenNoPadHash + ')');
+                console.log('token equals secret:', token === apiSecret, 'tokenTrimEqualsSecret:', tokenTrim === apiSecret, 'tokenNoNLEqualsSecret:', tokenNoNL === apiSecret, 'tokenNoPadEqualsSecret:', tokenNoPad === apiSecret);
+            }
+            catch (e) {
+                void e;
+                console.log('debug log failed');
+            }
+            // Normalize both sides by trimming whitespace/newlines before equality check
+            const normalizedSecret = String(apiSecret).trim();
+            const normalizedToken = String(token || '').trim();
+            if (!normalizedToken || normalizedToken !== normalizedSecret) {
+                res.status(403).json({ success: false, error: 'Invalid or missing token' });
+                return;
+            }
+        }
+        // Support a "range" query param: if range=long return a 30-day window starting at `date`.
+        const range = String(req.query.range || 'single');
+        const cacheHint = String(req.query.cache || 'short');
+        // Helper: add days to YYYY-MM-DD
+        const addDays = (iso, days) => {
+            const d = new Date(iso + 'T00:00:00Z');
+            d.setUTCDate(d.getUTCDate() + days);
+            return d.toISOString().split('T')[0];
+        };
+        let apptPromise;
+        let tempPromise;
+        if (range === 'long') {
+            const endDate = addDays(date, 30);
+            apptPromise = db.collection('appointments')
+                .where('preferredDate', '>=', date)
+                .where('preferredDate', '<=', endDate)
+                .where('status', 'in', ['pending', 'confirmed'])
+                .get();
+            tempPromise = db.collection('temporaryBlocks')
+                .where('date', '>=', date)
+                .where('date', '<=', endDate)
+                .get();
+        }
+        else {
+            apptPromise = db.collection('appointments')
+                .where('preferredDate', '==', date)
+                .where('status', 'in', ['pending', 'confirmed'])
+                .get();
+            tempPromise = db.collection('temporaryBlocks')
+                .where('date', '==', date)
+                .get();
+        }
+        const [apptSnap, tempSnap] = await Promise.all([apptPromise, tempPromise]);
+        const appointments = apptSnap.docs.map(doc => {
+            const d = doc.data();
+            // Do not expose internal Firestore document IDs publicly; return only minimal non-identifying info
+            return {
+                confirmedTime: d.confirmedTime || null,
+                preferredTime: d.preferredTime || null,
+                service: d.service || null
+            };
+        });
+        const temporaryBlocks = tempSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Compute admin slots for the requested date using Admin SDK (secure)
+        const adminSlots = [];
+        try {
+            const [year, month] = date.split('-').map(Number);
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate().toString().padStart(2, '0')}`;
+            // Try to find a monthlySchedule for the month
+            const monthlyQuery = await db.collection('monthlySchedules')
+                .where('year', '==', year)
+                .where('month', '==', month)
+                .limit(1)
+                .get();
+            let templateId = null;
+            let monthlySchedule = null;
+            if (!monthlyQuery.empty) {
+                const docSnap = monthlyQuery.docs[0];
+                monthlySchedule = docSnap.data();
+                templateId = monthlySchedule.templateId || null;
+            }
+            else {
+                // Fallback: check templateAssignments collection
+                const assignQuery = await db.collection('templateAssignments')
+                    .where('year', '==', year)
+                    .where('month', '==', month)
+                    .limit(1)
+                    .get();
+                if (!assignQuery.empty) {
+                    templateId = assignQuery.docs[0].data().templateId || null;
+                }
+            }
+            if (templateId) {
+                const templateDoc = await db.collection('scheduleTemplates').doc(templateId).get();
+                if (templateDoc.exists) {
+                    const template = templateDoc.data();
+                    // Fetch global blocked slots for the month
+                    const blockedQuery = await db.collection('blockedSlots')
+                        .where('startDate', '>=', startDate)
+                        .where('startDate', '<=', endDate)
+                        .get();
+                    const globalBlocked = blockedQuery.docs.map(d => d.data());
+                    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    const daysInMonth = new Date(year, month, 0).getDate();
+                    for (let d = 1; d <= daysInMonth; d++) {
+                        const currentDate = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                        const dow = new Date(year, month - 1, d).getDay();
+                        const dayName = days[dow];
+                        const daySchedule = (template && template.schedule && template.schedule[dayName]) || [];
+                        // Check if date is blocked in monthlySchedule
+                        const isDateBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots.some((b) => b.date === currentDate && (!b.time || b.allDay)));
+                        // Check global blocked ranges
+                        const isDateBlockedGlobally = globalBlocked.some((b) => {
+                            const start = b.startDate || '';
+                            const end = b.endDate || b.startDate || '';
+                            if (!start || !end)
+                                return false;
+                            return currentDate >= start && currentDate <= end && (b.isAllDay || (!b.startTime && !b.endTime));
+                        });
+                        if (isDateBlockedInMonthly || isDateBlockedGlobally)
+                            continue;
+                        daySchedule.forEach((t) => {
+                            // Check time-level blocked
+                            const isTimeBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots.some((b) => b.date === currentDate && b.time === t));
+                            const isTimeBlockedGlobally = globalBlocked.some((b) => {
+                                const start = b.startDate || '';
+                                const end = b.endDate || b.startDate || '';
+                                if (!start || !end)
+                                    return false;
+                                if (currentDate < start || currentDate > end)
+                                    return false;
+                                if (b.isAllDay || (!b.startTime && !b.endTime))
+                                    return true;
+                                if (b.startTime && b.endTime)
+                                    return t >= b.startTime && t <= b.endTime;
+                                return false;
+                            });
+                            if (!isTimeBlockedInMonthly && !isTimeBlockedGlobally) {
+                                if (currentDate === date)
+                                    adminSlots.push(t);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        catch (adminErr) {
+            console.warn('Could not compute admin slots for public availability:', adminErr);
+        }
+        // Cache control: short (default) or long (for public caching/CDN)
+        // short: browser max-age 60s, s-maxage 300s; long: browser max-age 60s, s-maxage 86400s (1 day)
+        if (cacheHint === 'long') {
+            res.set('Cache-Control', 'public, max-age=60, s-maxage=86400');
+        }
+        else {
+            res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+        }
+        res.json({ success: true, appointments, temporaryBlocks });
+        return;
+    }
+    catch (error) {
+        console.error('Error in public availability endpoint:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+        return;
+    }
+});
+exports.api = (0, https_1.onRequest)({ region: 'europe-central2' }, app);
 exports.sendCancellationEmail = (0, firestore_1.onDocumentUpdated)({
     document: 'appointments/{appointmentId}',
     region: 'europe-central2'

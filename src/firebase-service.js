@@ -38,6 +38,11 @@ class FirebaseService {
     this.servicesCache = null;
     this.servicesCacheTimeout = 5 * 60 * 1000;
     this.servicesCacheTimestamp = 0;
+  // Flag to avoid spamming the console with repeated permission-denied messages
+  this._permissionDeniedWarned = false;
+  // Enforce server-only availability for public pages when set to true.
+  // You can control this per session via sessionStorage key 'useServerAvailability'.
+  this.useServerAvailability = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('useServerAvailability') === '1') || false;
   }
 
   // ##################################################################
@@ -132,7 +137,7 @@ class FirebaseService {
         return cached.slots;
       }
 
-      // Fetch temporary blocks for other sessions
+  // Fetch temporary blocks for other sessions
       const tempBlockedSlots = new Set();
       if (excludeSessionId) {
           try {
@@ -195,8 +200,101 @@ class FirebaseService {
       return result;
 
     } catch (error) {
-      console.error('Error getting available time slots with advanced logic:', error);
+      // Detect permission errors and avoid spamming the console/network
+      const isPermissionError = (error && (error.code === 'permission-denied' || (error.message && /permission/i.test(error.message))));
+      if (isPermissionError && !this._permissionDeniedWarned) {
+        console.warn('Firebase permission denied when fetching available slots. Public pages may not have access to scheduling data.');
+        this._permissionDeniedWarned = true;
+      } else if (!isPermissionError) {
+        console.error('Error getting available time slots with advanced logic:', error);
+      }
+
+      // Cache empty result briefly to avoid repeated failing requests from the UI
+      try {
+        const cacheKey = `advanced_${date}_${excludeSessionId || 'none'}`;
+        this.slotsCache.set(cacheKey, { slots: [], timestamp: Date.now() });
+      } catch (_) {
+        // reference the variable so linters don't flag it as unused
+        void _;
+        // ignore cache set failures
+      }
+
       return [];
+    }
+  }
+
+  /**
+   * Batch-fetch availability for an entire month using server endpoint (range=long).
+   * Returns an array of slot objects similar to getAvailableTimeSlots but for the whole month.
+   */
+  async getAvailableTimeSlotsForMonth(year, month, excludeSessionId = null) {
+    const monthKey = `month_${year}_${String(month).padStart(2, '0')}_${excludeSessionId || 'none'}`;
+    const cached = this.slotsCache.get(monthKey);
+    if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) return cached.slots;
+
+    // Build first-of-month date
+    const firstDate = `${year}-${String(month).padStart(2, '0')}-01`;
+
+    try {
+      // Prefer hosting /api path so routing and CORS are handled by Hosting rewrites
+      const functionBase = `${location.origin}/api`;
+      const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(firstDate)}&range=long`);
+      if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+      const data = await resp.json();
+      if (!data || !data.success) throw new Error('Invalid server response');
+
+      // server returns { appointments: [...], temporaryBlocks: [...] }
+      // Convert to per-day slot structures expected by calendar: build minimal slot array
+      const slotsByDate = new Map();
+
+      // From appointments
+      (data.appointments || []).forEach(a => {
+        const d = a.confirmedTime || a.preferredTime || null;
+        const date = a.preferredDate || a.confirmedDate || null;
+        if (!date || !d) return;
+        const entry = {
+          date,
+          time: d,
+          isAvailable: false,
+          isBooked: true,
+          isTemporarilyBlocked: false
+        };
+        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
+        slotsByDate.get(date).push(entry);
+      });
+
+      // From temporaryBlocks
+      (data.temporaryBlocks || []).forEach(tb => {
+        const date = tb.date;
+        const entry = {
+          date,
+          time: tb.time,
+          isAvailable: false,
+          isBooked: false,
+          isTemporarilyBlocked: true
+        };
+        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
+        slotsByDate.get(date).push(entry);
+      });
+
+      // Flatten into array
+      const result = [];
+  slotsByDate.forEach(arr => result.push(...arr));
+
+      this.slotsCache.set(monthKey, { slots: result, timestamp: Date.now() });
+      return result;
+    } catch (err) {
+      console.warn('Month availability fallback failed, falling back to per-day computation', err);
+      // Fallback: compute per-day locally by calling getAvailableTimeSlots for each day (keeps previous behavior)
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const results = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const daySlots = await this.getAvailableTimeSlots(dateStr, excludeSessionId);
+        results.push(...daySlots);
+      }
+      this.slotsCache.set(monthKey, { slots: results, timestamp: Date.now() });
+      return results;
     }
   }
 
@@ -273,13 +371,64 @@ class FirebaseService {
   }
 
   async getAppointmentsForDate(date) {
-    const q = query(
-      this.appointmentsCollection,
-      where('preferredDate', '==', date),
-      where('status', 'in', ['pending', 'confirmed'])
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    try {
+      // If forced to use server-side availability, skip client Firestore reads
+      if (this.useServerAvailability) {
+        const functionBase = `${location.origin}/api`;
+        try {
+          const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(date)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.appointments)) {
+              // map to local shape without exposing server ids
+              return data.appointments.map(a => ({ id: null, ...a }));
+            }
+          }
+        } catch (err) {
+          console.warn('Server fallback for appointments failed:', err);
+        }
+        return [];
+      }
+
+      const q = query(
+        this.appointmentsCollection,
+        where('preferredDate', '==', date),
+        where('status', 'in', ['pending', 'confirmed'])
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      const isPermissionError = (error && (error.code === 'permission-denied' || (error.message && /permission/i.test(error.message))));
+      if (isPermissionError) {
+        if (!this._permissionDeniedWarned) {
+          console.warn('Firebase permission denied when fetching appointments for date. Falling back to server endpoint.');
+          this._permissionDeniedWarned = true;
+          // Persist that the client should use server-only availability for this session
+          try { sessionStorage.setItem('useServerAvailability', '1'); } catch (e) { void e; }
+          this.useServerAvailability = true;
+        }
+
+        // Try server endpoint as a fallback (functions using Admin SDK)
+        try {
+          // Use the direct Cloud Function URL (region-specific) to avoid relying on hosting rewrites
+          const functionBase = 'https://europe-central2-joanna-psycholog.cloudfunctions.net/api';
+          const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(date)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.appointments)) {
+              return data.appointments.map(a => ({ id: a.id, ...a }));
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('Fallback server availability endpoint failed:', fetchErr);
+        }
+      } else {
+        console.error('Error fetching appointments for date:', error);
+      }
+
+      // Safe fallback
+      return [];
+    }
   }
 
   async getAdminSlotsForDate(date) {
