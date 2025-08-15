@@ -23,7 +23,7 @@ class AppointmentBooking {
         await publicAuth.init();
       }
     } catch {
-      this.showMessage('Błąd połączenia. Spróbuj odświeżyć stronę.', 'error');
+      this.showMessage('Błąd połączenia. Spróbuj odświeżyć strone.', 'error');
       this.setLoadingState(false);
       return;
     }
