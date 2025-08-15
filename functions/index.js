@@ -18,6 +18,8 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+// ...existing code...
+
 // Email transporter configuration (using Gmail - free option)
 const createEmailTransporter = () => nodemailer.createTransport({
   service: 'gmail',
@@ -110,79 +112,19 @@ app.post('/appointments', async (req, res) => {
   }
 });
 
-// Get all appointments (for admin use)
-app.get('/appointments', async (req, res) => {
-  try {
-    const { status, limit = 50 } = req.query;
-    
-    let query = db.collection('appointments').orderBy('createdAt', 'desc');
-    
-    if (status) {
-      query = query.where('status', '==', status);
-    }
-    
-    query = query.limit(parseInt(limit));
-    
-    const snapshot = await query.get();
-    const appointments = [];
-    
-    snapshot.forEach(doc => {
-      appointments.push({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate()
-      });
-    });
-
-    res.json({
-      success: true,
-      appointments,
-      count: appointments.length
-    });
-
-  } catch (error) {
-    console.error('Error fetching appointments:', error);
-    res.status(500).json({
-      error: 'Failed to fetch appointments'
-    });
-  }
+// Removed public admin listing endpoint for security: return 404
+app.get('/appointments', (req, res) => {
+  res.status(404).json({ success: false, error: 'Not available' });
 });
 
-// Update appointment status
-app.patch('/appointments/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, notes } = req.body;
+// Removed legacy public availability endpoint in favor of secured implementation in the src/ TypeScript function
+app.get('/public/availability', (req, res) => {
+  res.status(404).json({ success: false, error: 'Not available' });
+});
 
-    if (!['pending', 'confirmed', 'cancelled'].includes(status)) {
-      return res.status(400).json({
-        error: 'Invalid status. Must be: pending, confirmed, or cancelled'
-      });
-    }
-
-    const updateData = {
-      status,
-      updatedAt: new Date()
-    };
-
-    if (notes) {
-      updateData.notes = notes;
-    }
-
-    await db.collection('appointments').doc(id).update(updateData);
-
-    res.json({
-      success: true,
-      message: 'Appointment updated successfully'
-    });
-
-  } catch (error) {
-    console.error('Error updating appointment:', error);
-    res.status(500).json({
-      error: 'Failed to update appointment'
-    });
-  }
+// Removed legacy update endpoint to avoid public modifications; admins should use the admin UI or secured APIs
+app.patch('/appointments/:id', (req, res) => {
+  res.status(404).json({ success: false, error: 'Not available' });
 });
 
 // Email sending functions
@@ -273,8 +215,9 @@ function getServiceName(serviceKey) {
 }
 
 // Error handling middleware
-app.use((error, req, res) => { // removed next to satisfy no-unused-vars
-  console.error('Unhandled error:', error);
+app.use((error, req, res) => {
+  // keep minimal logging
+  console.error('Unhandled error:', { message: String(error && error.message || error) });
   res.status(500).json({
     error: 'Internal server error',
     message: 'Something went wrong'

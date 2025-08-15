@@ -162,15 +162,8 @@ class CalendarInterface {
 
       grid.innerHTML = `<div class="text-center py-4"><div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div><p class="mt-2 text-sm text-gray-600">Ładowanie dostępnych terminów...</p></div>`;
 
-      const daysInMonth = this.getDaysInMonth(this.currentYear, this.currentMonth);
-      const dailySlotPromises = [];
-      for (let day = 1; day <= daysInMonth; day++) {
-          const dateStr = `${this.currentYear}-${String(this.currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-          dailySlotPromises.push(firebaseService.getAvailableTimeSlots(dateStr));
-      }
-      
-      const monthlySlotsArrays = await Promise.all(dailySlotPromises);
-      this.availableSlots = monthlySlotsArrays.flat();
+  // Use monthly batch endpoint to reduce network requests
+  this.availableSlots = await firebaseService.getAvailableTimeSlotsForMonth(this.currentYear, this.currentMonth);
       
       this.slotsCache.set(cacheKey, this.availableSlots);
       this.renderCalendar();

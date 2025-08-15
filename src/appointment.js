@@ -101,14 +101,11 @@ class AppointmentBooking {
     maxDate.setDate(today.getDate() + 30);
     this.dateInput.max = maxDate.toISOString().split('T')[0];
     
-    // Disable weekends using onchange validation
+
     this.dateInput.addEventListener('input', (e) => {
       const selectedDate = new Date(e.target.value);
-      const dayOfWeek = selectedDate.getDay();
-      
-      if (dayOfWeek === 0 || dayOfWeek === 6) {
-        this.showMessage('Proszę wybrać termin od poniedziałku do piątku.', 'error');
-        e.target.value = '';
+      if (isNaN(selectedDate.getTime())) return;
+      if (!e.target.value) {
         this.clearTimeSlots();
       }
     });

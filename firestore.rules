@@ -4,8 +4,9 @@ service cloud.firestore {
 
     // Helper function to check if user is admin with admin: true
     function isAdminUser() {
+      // Only treat a user as admin when their users/{uid} document exists and has admin == true
       return request.auth != null &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
     }
 
     // Helper function to check if user is authenticated (anonymous or admin)
@@ -22,12 +23,14 @@ service cloud.firestore {
 
     // KOLEKCJA "appointments"
     match /appointments/{appointmentId} {
-      // Anonymous users can create appointments (public form)
-      allow create: if isAuthenticated();
+      // Allow public appointment creation from the booking form
+      // (no authentication required)
+      allow create: if true;
       
-      // Admins can read all appointment details
-      // A user can read their own appointment if they provide the correct reservation token
-      allow read: if isAdminUser() || (resource.data.reservationToken == request.query.get('token'));
+  // Admins can read all appointment details
+  // A user can read their own appointment if they provide the correct reservation token
+  // Note: access token is expected as a query parameter named 'token'
+  allow read: if isAdminUser() || (resource.data.reservationToken == request.query.token);
 
       // Only admins can list all appointments
       allow list: if isAdminUser();
@@ -49,32 +52,32 @@ service cloud.firestore {
 
     // KOLEKCJA "scheduleTemplates" - szablony grafików
     match /scheduleTemplates/{templateId} {
-      // Anyone can read templates for calendar generation
-      allow read: if isAuthenticated();
+      // Public reads are required for calendar generation on the public site
+      allow read: if true;
       // Only admins can write templates
       allow write: if isAdminUser();
     }
 
     // KOLEKCJA "templateAssignments" - przypisania szablonów do miesięcy
     match /templateAssignments/{assignmentId} {
-      // Anyone can read template assignments for calendar availability
-      allow read: if isAuthenticated();
+      // Public reads for calendar availability
+      allow read: if true;
       // Only admins can write template assignments
       allow write: if isAdminUser();
     }
 
     // KOLEKCJA "monthlySchedules" - grafiki miesięczne
     match /monthlySchedules/{scheduleId} {
-      // Anyone can read schedules for availability checking
-      allow read: if isAuthenticated();
+      // Public reads for availability checking
+      allow read: if true;
       // Only admins can write schedules
       allow write: if isAdminUser();
     }
 
     // KOLEKCJA "blockedSlots" - zablokowane terminy
     match /blockedSlots/{blockId} {
-      // Anyone can read blocked slots for availability checking
-      allow read: if isAuthenticated();
+      // Public reads for availability checking
+      allow read: if true;
       // Only admins can write blocked slots
       allow write: if isAdminUser();
     }
@@ -89,9 +92,11 @@ service cloud.firestore {
 
     // KOLEKCJA "temporaryBlocks" - tymczasowe blokady terminów
     match /temporaryBlocks/{blockId} {
-      // Authenticated users can create/read/update/delete temporary blocks
-      // This allows the appointment form to temporarily hold slots
-      allow read, write: if isAuthenticated();
+      // Allow public creation and reading of temporary blocks used by the booking UI
+      // (these documents are short-lived and identified by sessionId)
+      allow create, read: if true;
+      // Allow updates/deletes only from the client that created the block
+      allow update, delete: if request.resource.data.sessionId == resource.data.sessionId || request.auth != null && isAdminUser();
     }
 
     // KOLEKCJA "feedback" - opinie klientów
@@ -112,8 +117,8 @@ service cloud.firestore {
 
     // KOLEKCJA "services" - dostępne usługi/produkty
     match /services/{serviceId} {
-      // Anyone can read services for public form and calendar
-      allow read: if isAuthenticated();
+      // Public reads for services used in the booking form and calendar
+      allow read: if true;
       // Only admins can write services
       allow write: if isAdminUser();
     }

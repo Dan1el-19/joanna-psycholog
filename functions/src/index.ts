@@ -5,7 +5,9 @@
 
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onCall } from 'firebase-functions/v2/https';
+import { onCall, onRequest } from 'firebase-functions/v2/https';
+import express, { Request, Response } from 'express';
+// crypto removed: no longer used after cleanup of debug hashes
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -62,6 +64,39 @@ interface Service {
   name: string;
   price: number;
   duration: number;
+}
+
+// Types used by public availability computation
+interface BlockedSlot {
+  id?: string;
+  date?: string;
+  time?: string;
+  allDay?: boolean;
+  startDate?: string;
+  endDate?: string;
+  isAllDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface MonthlySchedule {
+  id?: string;
+  year?: number;
+  month?: number;
+  templateId?: string;
+  blockedSlots?: BlockedSlot[];
+}
+
+interface ScheduleTemplate {
+  id?: string;
+  schedule?: Record<string, string[]>;
+}
+
+// Minimal shape used by public availability endpoint
+interface MinimalAppointmentData {
+  confirmedTime?: string | null;
+  preferredTime?: string | null;
+  service?: string | null;
 }
 
 // --- Confirm Appointment Email Trigger ---
@@ -455,6 +490,293 @@ export const sendAppointmentReminders = onSchedule(
     }
   }
 );
+
+// --- Public HTTP API (Express) ---
+const app = express();
+
+// Configure allowed origins via environment variable `ALLOWED_ORIGINS` (comma separated).
+// Defaults to common site origins used by this project.
+const defaultAllowed = [
+  'https://myreflection.pl',
+  'https://www.myreflection.pl',
+  'https://joanna-psycholog.web.app',
+  'http://localhost:5173'
+];
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || defaultAllowed.join(',')).split(',').map(s => s.trim()).filter(Boolean);
+
+// Dynamic CORS allowing only whitelisted origins. We do NOT allow credentials here to avoid leaking auth.
+app.use((req, res, next) => {
+  const origin = req.header('Origin');
+  if (!origin) {
+    // No Origin header (curl, server-side); allow but use wildcard and minimal headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    return next();
+  }
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Methods', 'GET,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    // Do not set Access-Control-Allow-Credentials to true for this public endpoint
+    return next();
+  }
+  // Not allowed by CORS
+  res.status(403).json({ success: false, error: 'Origin not allowed by CORS' });
+});
+
+app.use(express.json());
+
+// Support hosting rewrites that forward paths with a leading `/api` prefix.
+// Some hosting setups proxy `/api/public/availability` to the function without
+// removing the `/api` prefix. To be tolerant, strip a single leading `/api` so
+// existing route definitions (e.g. `/public/availability`) still match.
+app.use((req, res, next) => {
+  try {
+    if (req.path && req.path.startsWith('/api/')) {
+      req.url = req.url.replace(/^\/api/, '') || '/';
+    }
+  } catch {
+    // ignore and continue
+  }
+  next();
+});
+
+// Basic in-memory rate limiter (per-IP). Limits to 60 requests per minute per IP.
+// This is a best-effort protection against abuse; note: in-memory limits won't be shared across instances.
+const rateWindowMs = 60 * 1000;
+const maxRequestsPerWindow = 60;
+const ipCounters = new Map<string, { count: number; resetAt: number }>();
+app.use((req, res, next) => {
+  try {
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    const now = Date.now();
+    const entry = ipCounters.get(ip);
+    if (!entry || now > entry.resetAt) {
+      ipCounters.set(ip, { count: 1, resetAt: now + rateWindowMs });
+      return next();
+    }
+    if (entry.count >= maxRequestsPerWindow) {
+      res.status(429).json({ success: false, error: 'Rate limit exceeded' });
+      return;
+    }
+    entry.count += 1;
+    return next();
+  } catch {
+    return next();
+  }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Appointment booking API is running' });
+});
+
+// Public availability endpoint used by the booking UI when direct Firestore reads are restricted
+// Returns minimal appointment info and temporary blocks for a given date
+app.get('/public/availability', async (req: Request, res: Response) => {
+  try {
+    const date = String(req.query.date || '');
+    // Accept token either as query param `token` or as Authorization header `Bearer <token>`
+    let token = String(req.query.token || '');
+    try {
+      const authHeader = String(req.header('Authorization') || req.header('authorization') || '').trim();
+      if (!token && authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+        token = authHeader.slice(7).trim();
+      }
+    } catch {
+      // ignore header parsing errors and continue with query token
+    }
+    if (!date) {
+      res.status(400).json({ success: false, error: 'Missing required date parameter' });
+      return;
+    }
+    // Validate date format YYYY-MM-DD to avoid injection
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ success: false, error: 'Invalid date format; expected YYYY-MM-DD' });
+      return;
+    }
+
+    // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query or Authorization header must match
+    const apiSecret = process.env.PUBLIC_API_SECRET || '';
+    if (apiSecret) {
+      // Normalize both sides by trimming whitespace/newlines before equality check
+      const normalizedSecret = String(apiSecret).trim();
+      const normalizedToken = String(token || '').trim();
+      if (!normalizedToken || normalizedToken !== normalizedSecret) {
+        res.status(403).json({ success: false, error: 'Invalid or missing token' });
+        return;
+      }
+    }
+    // Support a "range" query param: if range=long return a 30-day window starting at `date`.
+    const range = String(req.query.range || 'single');
+    const cacheHint = String(req.query.cache || 'short');
+
+    // Helper: add days to YYYY-MM-DD
+    const addDays = (iso: string, days: number) => {
+      const d = new Date(iso + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().split('T')[0];
+    };
+
+    let apptPromise;
+    let tempPromise;
+
+    if (range === 'long') {
+      const endDate = addDays(date, 30);
+      apptPromise = db.collection('appointments')
+        .where('preferredDate', '>=', date)
+        .where('preferredDate', '<=', endDate)
+        .where('status', 'in', ['pending', 'confirmed'])
+        .get();
+
+      tempPromise = db.collection('temporaryBlocks')
+        .where('date', '>=', date)
+        .where('date', '<=', endDate)
+        .get();
+    } else {
+      apptPromise = db.collection('appointments')
+        .where('preferredDate', '==', date)
+        .where('status', 'in', ['pending', 'confirmed'])
+        .get();
+
+      tempPromise = db.collection('temporaryBlocks')
+        .where('date', '==', date)
+        .get();
+    }
+
+    const [apptSnap, tempSnap] = await Promise.all([apptPromise, tempPromise]);
+
+    const appointments = apptSnap.docs.map(doc => {
+      const d = doc.data() as MinimalAppointmentData;
+      // Do not expose internal Firestore document IDs publicly; return only minimal non-identifying info
+      return {
+        confirmedTime: d.confirmedTime || null,
+        preferredTime: d.preferredTime || null,
+        service: d.service || null
+      };
+    });
+
+    const temporaryBlocks = tempSnap.docs.map(doc => {
+      const d = doc.data() as BlockedSlot;
+      // Return a minimal, non-identifying shape to avoid leaking PII
+      return {
+        id: doc.id,
+        date: d.date || null,
+        time: d.time || d.startTime || null,
+        endTime: d.endTime || null,
+        allDay: Boolean(d.allDay)
+      };
+    });
+
+    // Compute admin slots for the requested date using Admin SDK (secure)
+    const adminSlots = [] as string[];
+    try {
+  const [year, month] = date.split('-').map(Number);
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate().toString().padStart(2, '0')}`;
+
+      // Try to find a monthlySchedule for the month
+      const monthlyQuery = await db.collection('monthlySchedules')
+        .where('year', '==', year)
+        .where('month', '==', month)
+        .limit(1)
+        .get();
+
+  let templateId: string | null = null;
+  let monthlySchedule: MonthlySchedule | null = null;
+      if (!monthlyQuery.empty) {
+        const docSnap = monthlyQuery.docs[0];
+        monthlySchedule = docSnap.data();
+    templateId = (monthlySchedule.templateId as string) || null;
+      } else {
+        // Fallback: check templateAssignments collection
+        const assignQuery = await db.collection('templateAssignments')
+          .where('year', '==', year)
+          .where('month', '==', month)
+          .limit(1)
+          .get();
+        if (!assignQuery.empty) {
+          templateId = assignQuery.docs[0].data().templateId || null;
+        }
+      }
+
+      if (templateId) {
+        const templateDoc = await db.collection('scheduleTemplates').doc(templateId).get();
+        if (templateDoc.exists) {
+          const template = templateDoc.data() as ScheduleTemplate | null;
+
+          // Fetch global blocked slots for the month
+          const blockedQuery = await db.collection('blockedSlots')
+            .where('startDate', '>=', startDate)
+            .where('startDate', '<=', endDate)
+            .get();
+          const globalBlocked = blockedQuery.docs.map(d => d.data() as BlockedSlot);
+
+          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+          const daysInMonth = new Date(year, month, 0).getDate();
+
+          for (let d = 1; d <= daysInMonth; d++) {
+            const currentDate = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const dow = new Date(year, month - 1, d).getDay();
+            const dayName = days[dow];
+
+            const daySchedule = (template && template.schedule && template.schedule[dayName]) || [];
+
+            // Check if date is blocked in monthlySchedule
+            const isDateBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots!.some((b: BlockedSlot) => b.date === currentDate && (!b.time || b.allDay)));
+
+            // Check global blocked ranges
+            const isDateBlockedGlobally = globalBlocked.some((b: BlockedSlot) => {
+              const start = b.startDate || '';
+              const end = b.endDate || b.startDate || '';
+              if (!start || !end) return false;
+              return currentDate >= start && currentDate <= end && (b.isAllDay || (!b.startTime && !b.endTime));
+            });
+
+            if (isDateBlockedInMonthly || isDateBlockedGlobally) continue;
+
+            daySchedule.forEach((t: string) => {
+              // Check time-level blocked
+              const isTimeBlockedInMonthly = !!(monthlySchedule && Array.isArray(monthlySchedule.blockedSlots) && monthlySchedule.blockedSlots!.some((b: BlockedSlot) => b.date === currentDate && b.time === t));
+              const isTimeBlockedGlobally = globalBlocked.some((b: BlockedSlot) => {
+                const start = b.startDate || '';
+                const end = b.endDate || b.startDate || '';
+                if (!start || !end) return false;
+                if (currentDate < start || currentDate > end) return false;
+                if (b.isAllDay || (!b.startTime && !b.endTime)) return true;
+                if (b.startTime && b.endTime) return t >= b.startTime && t <= b.endTime;
+                return false;
+              });
+              if (!isTimeBlockedInMonthly && !isTimeBlockedGlobally) {
+                if (currentDate === date) adminSlots.push(t);
+              }
+            });
+          }
+        }
+      }
+    } catch (adminErr) {
+      console.warn('Could not compute admin slots for public availability:', adminErr);
+    }
+
+    // Cache control: short (default) or long (for public caching/CDN)
+    // short: browser max-age 60s, s-maxage 300s; long: browser max-age 60s, s-maxage 86400s (1 day)
+    if (cacheHint === 'long') {
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=86400');
+    } else {
+      res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
+    }
+
+    res.json({ success: true, appointments, temporaryBlocks });
+    return;
+  } catch (error) {
+    console.error('Error in public availability endpoint:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+    return;
+  }
+});
+
+export const api = onRequest({ region: 'europe-central2' }, app);
 
 export const sendCancellationEmail = onDocumentUpdated(
   {

@@ -8,6 +8,7 @@ yarn-error.log*
 dist/
 build/
 functions/lib/
+functions/lib/**
 
 # Environment variables
 .env
