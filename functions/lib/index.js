@@ -3,6 +3,39 @@
  * Firebase Cloud Functions for Appointment Email System
  * VERSION 2.1 - Complete Overhaul with Professional Email Templates for ALL functions
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -12,6 +45,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const scheduler_1 = require("firebase-functions/v2/scheduler");
 const https_1 = require("firebase-functions/v2/https");
 const express_1 = __importDefault(require("express"));
+const crypto = __importStar(require("crypto"));
 const app_1 = require("firebase-admin/app");
 const firestore_2 = require("firebase-admin/firestore");
 const auth_1 = require("firebase-admin/auth");
@@ -444,7 +478,17 @@ app.get('/health', (req, res) => {
 app.get('/public/availability', async (req, res) => {
     try {
         const date = String(req.query.date || '');
-        const token = String(req.query.token || '');
+        // Accept token either as query param `token` or as Authorization header `Bearer <token>`
+        let token = String(req.query.token || '');
+        try {
+            const authHeader = String(req.header('Authorization') || req.header('authorization') || '').trim();
+            if (!token && authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+                token = authHeader.slice(7).trim();
+            }
+        }
+        catch (_a) {
+            // ignore header parsing errors and continue with query token
+        }
         if (!date) {
             res.status(400).json({ success: false, error: 'Missing required date parameter' });
             return;
@@ -454,10 +498,43 @@ app.get('/public/availability', async (req, res) => {
             res.status(400).json({ success: false, error: 'Invalid date format; expected YYYY-MM-DD' });
             return;
         }
-        // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query must match
+        // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query or Authorization header must match
         const apiSecret = process.env.PUBLIC_API_SECRET || '';
         if (apiSecret) {
-            if (!token || token !== apiSecret) {
+            try {
+                // Safe debug: log only presence, lengths and sha256 hashes to diagnose mismatches without revealing values
+                const secretHash = crypto.createHash('sha256').update(apiSecret).digest('hex').slice(0, 12);
+                const tokenHash = token ? crypto.createHash('sha256').update(token).digest('hex').slice(0, 12) : 'missing';
+                // normalize variants
+                const secretTrim = String(apiSecret).trim();
+                const secretNoNL = String(apiSecret).replace(/\r|\n/g, '');
+                const secretNoPad = String(apiSecret).replace(/=+$/, '');
+                const tokenTrim = String(token || '').trim();
+                const tokenNoNL = String(token || '').replace(/\r|\n/g, '');
+                const tokenNoPad = String(token || '').replace(/=+$/, '');
+                const secretTrimHash = crypto.createHash('sha256').update(secretTrim).digest('hex').slice(0, 12);
+                const secretNoNLHash = crypto.createHash('sha256').update(secretNoNL).digest('hex').slice(0, 12);
+                const secretNoPadHash = crypto.createHash('sha256').update(secretNoPad).digest('hex').slice(0, 12);
+                const tokenTrimHash = token ? crypto.createHash('sha256').update(tokenTrim).digest('hex').slice(0, 12) : 'missing';
+                const tokenNoNLHash = token ? crypto.createHash('sha256').update(tokenNoNL).digest('hex').slice(0, 12) : 'missing';
+                const tokenNoPadHash = token ? crypto.createHash('sha256').update(tokenNoPad).digest('hex').slice(0, 12) : 'missing';
+                // Also log whether an Authorization header was present and the raw header length (but not its value)
+                const rawAuthHeader = String(req.header('Authorization') || req.header('authorization') || '');
+                console.log('PUBLIC_API_SECRET present:', true, 'len=', String(apiSecret.length), 'sha12=', secretHash);
+                console.log('PUBLIC_API_SECRET variants: trim(len=' + String(secretTrim.length) + ' sha12=' + secretTrimHash + '), noNL(len=' + String(secretNoNL.length) + ' sha12=' + secretNoNLHash + '), noPad(len=' + String(secretNoPad.length) + ' sha12=' + secretNoPadHash + ')');
+                console.log('Authorization header present:', rawAuthHeader.length > 0, 'authHeaderLen=', String(rawAuthHeader.length));
+                console.log('incoming token present:', Boolean(token), 'len=', String((token || '').length), 'sha12=', tokenHash);
+                console.log('incoming token variants: trim(len=' + String(tokenTrim.length) + ' sha12=' + tokenTrimHash + '), noNL(len=' + String(tokenNoNL.length) + ' sha12=' + tokenNoNLHash + '), noPad(len=' + String(tokenNoPad.length) + ' sha12=' + tokenNoPadHash + ')');
+                console.log('token equals secret:', token === apiSecret, 'tokenTrimEqualsSecret:', tokenTrim === apiSecret, 'tokenNoNLEqualsSecret:', tokenNoNL === apiSecret, 'tokenNoPadEqualsSecret:', tokenNoPad === apiSecret);
+            }
+            catch (e) {
+                void e;
+                console.log('debug log failed');
+            }
+            // Normalize both sides by trimming whitespace/newlines before equality check
+            const normalizedSecret = String(apiSecret).trim();
+            const normalizedToken = String(token || '').trim();
+            if (!normalizedToken || normalizedToken !== normalizedSecret) {
                 res.status(403).json({ success: false, error: 'Invalid or missing token' });
                 return;
             }

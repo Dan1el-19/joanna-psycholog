@@ -8,10 +8,10 @@ const isDev = location.hostname === 'localhost' || location.hostname === '127.0.
 // Zasoby do cache'owania
 const STATIC_ASSETS = [
   '/',
-  '/src/style.css',
-  '/src/main.js',
-  '/src/app.js',
-  '/src/firebase-config.js',
+  '/style.css',
+  '/main.js',
+  '/app.js',
+  '/firebase-config.js',
   '/partials/_header.html',
   '/partials/_footer.html',
   '/photos/reflection.jpg',
@@ -146,9 +146,7 @@ async function handleApiRequest(request) {
 function isStaticAsset(url) {
   const pathname = url.pathname;
   return STATIC_ASSETS.includes(pathname) ||
-         pathname.startsWith('/src/') ||
          pathname.startsWith('/partials/') ||
-         pathname.startsWith('/main/') ||
          /.(html|css|js|jpg|png|ico|svg)$/.test(pathname);
 }
 

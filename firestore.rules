@@ -4,8 +4,9 @@ service cloud.firestore {
 
     // Helper function to check if user is admin with admin: true
     function isAdminUser() {
+      // Only treat a user as admin when their users/{uid} document exists and has admin == true
       return request.auth != null &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
     }
 
     // Helper function to check if user is authenticated (anonymous or admin)

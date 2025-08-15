@@ -40,6 +40,9 @@ class FirebaseService {
     this.servicesCacheTimestamp = 0;
   // Flag to avoid spamming the console with repeated permission-denied messages
   this._permissionDeniedWarned = false;
+  // Enforce server-only availability for public pages when set to true.
+  // You can control this per session via sessionStorage key 'useServerAvailability'.
+  this.useServerAvailability = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('useServerAvailability') === '1') || false;
   }
 
   // ##################################################################
@@ -369,6 +372,24 @@ class FirebaseService {
 
   async getAppointmentsForDate(date) {
     try {
+      // If forced to use server-side availability, skip client Firestore reads
+      if (this.useServerAvailability) {
+        const functionBase = `${location.origin}/api`;
+        try {
+          const resp = await fetch(`${functionBase}/public/availability?date=${encodeURIComponent(date)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.appointments)) {
+              // map to local shape without exposing server ids
+              return data.appointments.map(a => ({ id: null, ...a }));
+            }
+          }
+        } catch (err) {
+          console.warn('Server fallback for appointments failed:', err);
+        }
+        return [];
+      }
+
       const q = query(
         this.appointmentsCollection,
         where('preferredDate', '==', date),
@@ -382,6 +403,9 @@ class FirebaseService {
         if (!this._permissionDeniedWarned) {
           console.warn('Firebase permission denied when fetching appointments for date. Falling back to server endpoint.');
           this._permissionDeniedWarned = true;
+          // Persist that the client should use server-only availability for this session
+          try { sessionStorage.setItem('useServerAvailability', '1'); } catch (e) { void e; }
+          this.useServerAvailability = true;
         }
 
         // Try server endpoint as a fallback (functions using Admin SDK)

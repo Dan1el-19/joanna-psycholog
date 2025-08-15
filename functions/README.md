@@ -177,3 +177,16 @@ Comprehensive error handling with:
 - Detailed error logging
 - Graceful fallbacks
 - Status tracking for failed emails
+
+## Public Availability API - Secret and Deployment
+
+This project exposes a public availability endpoint in the `api` service at `/public/availability`.
+
+- Where to store the secret: add `PUBLIC_API_SECRET` to `functions/env-vars.yaml` (used during gen2 deploy) and replace the placeholder with a strong random value.
+- How it's used: the server will accept requests that include the header `Authorization: Bearer <PUBLIC_API_SECRET>` when `PUBLIC_API_SECRET` is set. If not set, the endpoint remains usable but CORS and rate-limiting still apply.
+- Deploy with gcloud (example):
+
+  1. Update `functions/env-vars.yaml` with `PUBLIC_API_SECRET: "YOUR_LONG_SECRET_HERE"`.
+  2. Deploy the run service / function with that env file (gcloud or firebase deploy depending on your pipeline).
+
+Do not commit secrets to source control. Keep `functions/env-vars.yaml` out of version control or use a secret manager.

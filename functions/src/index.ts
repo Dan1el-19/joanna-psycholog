@@ -7,6 +7,7 @@ import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/fire
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onCall, onRequest } from 'firebase-functions/v2/https';
 import express, { Request, Response } from 'express';
+// crypto removed: no longer used after cleanup of debug hashes
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
@@ -576,7 +577,16 @@ app.get('/health', (req, res) => {
 app.get('/public/availability', async (req: Request, res: Response) => {
   try {
     const date = String(req.query.date || '');
-    const token = String(req.query.token || '');
+    // Accept token either as query param `token` or as Authorization header `Bearer <token>`
+    let token = String(req.query.token || '');
+    try {
+      const authHeader = String(req.header('Authorization') || req.header('authorization') || '').trim();
+      if (!token && authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+        token = authHeader.slice(7).trim();
+      }
+    } catch {
+      // ignore header parsing errors and continue with query token
+    }
     if (!date) {
       res.status(400).json({ success: false, error: 'Missing required date parameter' });
       return;
@@ -587,10 +597,13 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       return;
     }
 
-    // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query must match
+    // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query or Authorization header must match
     const apiSecret = process.env.PUBLIC_API_SECRET || '';
     if (apiSecret) {
-      if (!token || token !== apiSecret) {
+      // Normalize both sides by trimming whitespace/newlines before equality check
+      const normalizedSecret = String(apiSecret).trim();
+      const normalizedToken = String(token || '').trim();
+      if (!normalizedToken || normalizedToken !== normalizedSecret) {
         res.status(403).json({ success: false, error: 'Invalid or missing token' });
         return;
       }
@@ -644,7 +657,17 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       };
     });
 
-    const temporaryBlocks = tempSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) }));
+    const temporaryBlocks = tempSnap.docs.map(doc => {
+      const d = doc.data() as BlockedSlot;
+      // Return a minimal, non-identifying shape to avoid leaking PII
+      return {
+        id: doc.id,
+        date: d.date || null,
+        time: d.time || d.startTime || null,
+        endTime: d.endTime || null,
+        allDay: Boolean(d.allDay)
+      };
+    });
 
     // Compute admin slots for the requested date using Admin SDK (secure)
     const adminSlots = [] as string[];

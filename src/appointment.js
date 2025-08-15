@@ -101,12 +101,10 @@ class AppointmentBooking {
     maxDate.setDate(today.getDate() + 30);
     this.dateInput.max = maxDate.toISOString().split('T')[0];
     
-    // Keep simple validation but do not block weekends (allow Saturday and Sunday)
+
     this.dateInput.addEventListener('input', (e) => {
       const selectedDate = new Date(e.target.value);
       if (isNaN(selectedDate.getTime())) return;
-      // Previously weekends were blocked here; we now allow all weekdays including Sat/Sun.
-      // Still clear time slots if date becomes invalid.
       if (!e.target.value) {
         this.clearTimeSlots();
       }
