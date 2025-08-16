@@ -93,11 +93,8 @@ interface ScheduleTemplate {
 }
 
 // Minimal shape used by public availability endpoint
-interface MinimalAppointmentData {
-  confirmedTime?: string | null;
-  preferredTime?: string | null;
-  service?: string | null;
-}
+// Minimal appointment data shape previously declared here was removed because we now return
+// explicit date fields (preferredDate/confirmedDate) in the public availability response.
 
 // --- Confirm Appointment Email Trigger ---
 export const sendConfirmEmail = onDocumentUpdated(
@@ -600,10 +597,28 @@ app.get('/public/availability', async (req: Request, res: Response) => {
     // Optional secret token enforcement: if PUBLIC_API_SECRET is set, token query or Authorization header must match
     const apiSecret = process.env.PUBLIC_API_SECRET || '';
     if (apiSecret) {
+  // Allow requests without token when they originate from hosting domain.
+  // Some proxies / hosting rewrites preserve the public host in headers like
+  // `x-forwarded-host` or `x-forwarded-server`. Also accept Origin header.
+  const hostHeader = String(req.get('host') || '');
+  const forwardedHost = String(req.get('x-forwarded-host') || '');
+  const forwardedServer = String(req.get('x-forwarded-server') || '');
+  const originHeader = String(req.get('origin') || '');
+
       // Normalize both sides by trimming whitespace/newlines before equality check
       const normalizedSecret = String(apiSecret).trim();
       const normalizedToken = String(token || '').trim();
-      if (!normalizedToken || normalizedToken !== normalizedSecret) {
+
+      // Consider the request allowed if any of the common headers indicate our hosting domain.
+      const isAllowedOrigin = [hostHeader, forwardedHost, forwardedServer, originHeader]
+        .some(h => h && h.indexOf('myreflection.pl') !== -1);
+
+      if (normalizedToken && normalizedToken === normalizedSecret) {
+        // authorized via token
+      } else if (isAllowedOrigin) {
+        // allow same-origin requests from hosting domain without token
+      } else {
+        // Return a helpful, non-sensitive diagnostic to aid browser testing.
         res.status(403).json({ success: false, error: 'Invalid or missing token' });
         return;
       }
@@ -648,11 +663,13 @@ app.get('/public/availability', async (req: Request, res: Response) => {
     const [apptSnap, tempSnap] = await Promise.all([apptPromise, tempPromise]);
 
     const appointments = apptSnap.docs.map(doc => {
-      const d = doc.data() as MinimalAppointmentData;
+      const d = doc.data() as unknown as { preferredDate?: string; confirmedDate?: string; preferredTime?: string; confirmedTime?: string; service?: string };
       // Do not expose internal Firestore document IDs publicly; return only minimal non-identifying info
       return {
         confirmedTime: d.confirmedTime || null,
         preferredTime: d.preferredTime || null,
+        confirmedDate: d.confirmedDate || d.preferredDate || null,
+        preferredDate: d.preferredDate || d.confirmedDate || null,
         service: d.service || null
       };
     });
@@ -669,8 +686,274 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       };
     });
 
-    // Compute admin slots for the requested date using Admin SDK (secure)
-    const adminSlots = [] as string[];
+    // If the client asked for a long range, compute available slots across the range
+  const availableSlots: { date: string; time: string }[] = [];
+    if (range === 'long') {
+      try {
+        // Build quick lookup of booked times and temporary blocks
+        // But expand bookings to cover service duration and add forward/backward buffers.
+        const booked = new Set<string>(); // `${date}|${time}` (actual occupied slots)
+        const blocked = new Set<string>(); // `${date}|${time}` (blocked due to temp blocks or buffers)
+
+        // Fetch services durations (minutes)
+        const servicesMap = new Map<string, number>();
+        try {
+          const svcSnap = await db.collection('services').get();
+          svcSnap.docs.forEach(sdoc => {
+            const sdata = sdoc.data() as unknown as { duration?: number };
+            if (sdoc.id) {
+              servicesMap.set(sdoc.id, Number(sdata.duration) || 50);
+            }
+          });
+        } catch {
+          // ignore, we'll fallback to defaults
+        }
+
+        // Determine maximum service slots (for backward buffer)
+        const slotLength = 30; // minutes
+        const minBreakMinutes = 10; // minimal break requirement after appointment
+        const defaultDur = 50;
+        let maxServiceSlots = 1;
+        Array.from(servicesMap.values()).forEach(d => {
+          const slots = Math.ceil((d || defaultDur) / slotLength);
+          if (slots > maxServiceSlots) maxServiceSlots = slots;
+        });
+
+        // helper: generate standard day slots (07:00..20:30)
+        const allSlots = [] as string[];
+        for (let hour = 7; hour <= 20; hour++) {
+          allSlots.push(`${String(hour).padStart(2,'0')}:00`);
+          allSlots.push(`${String(hour).padStart(2,'0')}:30`);
+        }
+
+        function slotIndexOf(time: string) {
+          return allSlots.indexOf(time);
+        }
+
+        function slotAt(index: number) {
+          if (index < 0 || index >= allSlots.length) return null;
+          return allSlots[index];
+        }
+
+        // Process temporary blocks
+        tempSnap.docs.forEach(d => {
+          const bd = d.data() as Record<string, unknown>;
+          const bdDate = String(bd.date || '');
+          const bdTime = String(bd.time || '');
+          if (bdDate && bdTime) blocked.add(`${bdDate}|${bdTime}`);
+        });
+
+        // Expand appointments into booked slots and add buffers
+        apptSnap.docs.forEach(d => {
+          const ad = d.data() as Record<string, unknown>;
+          const dt = String(ad.confirmedDate || ad.preferredDate || '');
+          const t = String(ad.confirmedTime || ad.preferredTime || '');
+          const svc = String(ad.service || '');
+          if (!dt || !t) return;
+          const duration = servicesMap.get(svc) || defaultDur;
+          const serviceSlots = Math.max(1, Math.ceil(duration / slotLength));
+
+          const startIdx = slotIndexOf(t);
+          if (startIdx === -1) {
+            // unknown time format, fallback to single slot mark
+            booked.add(`${dt}|${t}`);
+            return;
+          }
+
+          // Mark appointment occupied slots
+          for (let i = 0; i < serviceSlots; i++) {
+            const s = slotAt(startIdx + i);
+            if (s) booked.add(`${dt}|${s}`);
+          }
+
+          // Backward buffer: block up to maxServiceSlots before appointment start
+          for (let i = 1; i <= maxServiceSlots; i++) {
+            const prev = slotAt(startIdx - i);
+            if (prev) blocked.add(`${dt}|${prev}`);
+          }
+
+          // Forward buffer: ensure minBreak after appointment
+          const extraBreakSlots = Math.ceil(minBreakMinutes / slotLength);
+          const endIdx = startIdx + serviceSlots - 1;
+          for (let i = 1; i <= extraBreakSlots; i++) {
+            const next = slotAt(endIdx + i);
+            if (next) blocked.add(`${dt}|${next}`);
+          }
+        });
+
+        // Helper to get template schedule for a month (caches per month)
+        const templateCache = new Map<string, ScheduleTemplate | null>();
+        async function getTemplateForMonth(y: number, m: number): Promise<ScheduleTemplate | null> {
+          const key = `${y}-${m}`;
+          if (templateCache.has(key)) return templateCache.get(key) || null;
+          // try monthlySchedules
+          const mq = await db.collection('monthlySchedules').where('year', '==', y).where('month', '==', m).limit(1).get();
+          if (!mq.empty) {
+            const ms = mq.docs[0].data() as MonthlySchedule;
+            if (ms && ms.templateId) {
+              const td = await db.collection('scheduleTemplates').doc(ms.templateId).get();
+              const tpl = td.exists ? (td.data() as ScheduleTemplate) : null;
+              templateCache.set(key, tpl);
+              return tpl;
+            }
+          }
+          // fallback to templateAssignments
+          const aq = await db.collection('templateAssignments').where('year', '==', y).where('month', '==', m).limit(1).get();
+          if (!aq.empty) {
+            const tplId = aq.docs[0].data().templateId;
+            if (tplId) {
+              const td = await db.collection('scheduleTemplates').doc(tplId).get();
+              const tpl = td.exists ? (td.data() as ScheduleTemplate) : null;
+              templateCache.set(key, tpl);
+              return tpl;
+            }
+          }
+          templateCache.set(key, null);
+          return null;
+        }
+
+        // iterate each date in window
+        const start = date;
+        const end = addDays(date, 30);
+        for (let d = 0;; d++) {
+          const current = addDays(start, d);
+          if (current > end) break;
+          const [y, m] = current.split('-').map(Number);
+          const tpl = await getTemplateForMonth(y, m);
+          const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+          const dow = new Date(y, m - 1, Number(current.split('-')[2])).getDay();
+          const dayName = days[dow];
+          const daySchedule: string[] = (tpl && tpl.schedule && tpl.schedule[dayName]) || [];
+
+          // skip if no working times
+          if (!Array.isArray(daySchedule) || daySchedule.length === 0) continue;
+
+          for (const t of daySchedule) {
+            const key = `${current}|${t}`;
+            if (booked.has(key) || blocked.has(key)) continue;
+            availableSlots.push({ date: current, time: t });
+          }
+        }
+      } catch (e) {
+        console.warn('Could not compute available slots for month-range:', e);
+      }
+    }
+
+  // Also return scheduleTemplates / templateAssignments / monthlySchedules needed by the calendar
+    const scheduleTemplatesOut: Array<{ id: string; schedule?: Record<string, string[]> }> = [];
+    const templateAssignmentsOut: Array<{ year: number; month: number; templateId: string }> = [];
+    const monthlySchedulesOut: Array<{ id: string; year?: number; month?: number; blockedSlots?: BlockedSlot[] }> = [];
+
+    try {
+      // build set of year-month pairs covered by the range (at most 2 months for 30-day window)
+      const monthsInWindow = new Set<string>();
+      if (range === 'long') {
+        for (let i = 0; i <= 30; i++) {
+          const d = addDays(date, i);
+          const [y, m] = d.split('-').map(Number);
+          monthsInWindow.add(`${y}-${m}`);
+        }
+      } else {
+        const [y, m] = date.split('-').map(Number);
+        monthsInWindow.add(`${y}-${m}`);
+      }
+
+      const templateIds = new Set<string>();
+      for (const ym of monthsInWindow) {
+        const [y, m] = ym.split('-').map(Number);
+        // templateAssignments
+        const taSnap = await db.collection('templateAssignments').where('year', '==', y).where('month', '==', m).get();
+        taSnap.docs.forEach(d => {
+          const data = d.data();
+          if (data && data.templateId) {
+            templateAssignmentsOut.push({ year: y, month: m, templateId: data.templateId });
+            templateIds.add(String(data.templateId));
+          }
+        });
+
+        // monthlySchedules
+        const msSnap = await db.collection('monthlySchedules').where('year', '==', y).where('month', '==', m).get();
+        msSnap.docs.forEach(d => {
+          const docData = d.data() as MonthlySchedule;
+          monthlySchedulesOut.push({ id: d.id, year: docData.year, month: docData.month, blockedSlots: docData.blockedSlots || [] });
+          if (docData.templateId) templateIds.add(String(docData.templateId));
+        });
+      }
+
+      // fetch templates referenced
+      for (const tid of Array.from(templateIds)) {
+        try {
+          const td = await db.collection('scheduleTemplates').doc(tid).get();
+          if (td.exists) {
+            const tdata = td.data() as ScheduleTemplate;
+            scheduleTemplatesOut.push({ id: tid, schedule: tdata.schedule || {} });
+          }
+        } catch {
+          // ignore individual template fetch errors
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch schedule templates / assignments for public availability:', e);
+    }
+
+    // If we couldn't compute availableSlots earlier (empty) try synthesizing them from
+    // the scheduleTemplates/templateAssignments/monthlySchedules that we gathered above.
+    if (availableSlots.length === 0) {
+      try {
+        const templatesById: Record<string, Record<string, string[]>> = {};
+        scheduleTemplatesOut.forEach(t => { if (t && t.id) templatesById[t.id] = t.schedule || {}; });
+
+        const assignments = templateAssignmentsOut || [];
+        const monthly = monthlySchedulesOut || [];
+
+        // build a lookup for monthly blocked slots
+        const monthlyBlockedByDate = new Map<string, Set<string>>();
+        monthly.forEach(ms => {
+          (ms.blockedSlots || []).forEach(b => {
+            if (b && b.date && b.time) {
+              if (!monthlyBlockedByDate.has(b.date)) monthlyBlockedByDate.set(b.date, new Set());
+              monthlyBlockedByDate.get(b.date)!.add(b.time as string);
+            }
+          });
+        });
+
+        // iterate the same window and pick template for each month
+        const start = date;
+        const end = addDays(date, 30);
+        for (let i = 0; ; i++) {
+          const current = addDays(start, i);
+          if (current > end) break;
+          const [y, m, dayNum] = current.split('-').map(Number);
+
+          // select templateId for this month
+          const assign = assignments.find(a => Number(a.year) === y && Number(a.month) === m);
+          let tplId = assign ? String(assign.templateId) : null;
+          if (!tplId) {
+            const ms = monthly.find(mm => Number(mm.year) === y && Number(mm.month) === m);
+            if (ms && (ms as unknown as { templateId?: string }).templateId) tplId = String((ms as unknown as { templateId?: string }).templateId);
+          }
+
+          const tplSchedule = tplId ? (templatesById[tplId] || {}) : {};
+          const daysOfWeek = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+          const dow = new Date(y, m - 1, dayNum).getDay();
+          const dayName = daysOfWeek[dow];
+          const times = (tplSchedule && tplSchedule[dayName]) || [];
+          if (!Array.isArray(times) || times.length === 0) continue;
+
+          times.forEach(t => {
+            // skip if blocked in monthly schedule
+            const blockedSet = monthlyBlockedByDate.get(current);
+            if (blockedSet && blockedSet.has(t)) return;
+            availableSlots.push({ date: current, time: t });
+          });
+        }
+      } catch (synthErr) {
+        console.warn('Could not synthesize availableSlots from templates:', synthErr);
+      }
+    }
+
+  // Compute admin slots for the requested month using Admin SDK (secure)
+  const adminSlots: Array<{ date: string; time: string }> = [];
     try {
   const [year, month] = date.split('-').map(Number);
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -749,7 +1032,8 @@ app.get('/public/availability', async (req: Request, res: Response) => {
                 return false;
               });
               if (!isTimeBlockedInMonthly && !isTimeBlockedGlobally) {
-                if (currentDate === date) adminSlots.push(t);
+                // collect admin-declared slots for the full month
+                adminSlots.push({ date: currentDate, time: t });
               }
             });
           }
@@ -757,6 +1041,20 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       }
     } catch (adminErr) {
       console.warn('Could not compute admin slots for public availability:', adminErr);
+    }
+
+    // Merge adminSlots into availableSlots (deduplicate)
+    try {
+      const existing = new Set(availableSlots.map(s => `${s.date}|${s.time}`));
+      adminSlots.forEach(s => {
+        const key = `${s.date}|${s.time}`;
+        if (!existing.has(key)) {
+          availableSlots.push({ date: s.date, time: s.time });
+          existing.add(key);
+        }
+      });
+    } catch (mergeErr) {
+      console.warn('Could not merge adminSlots into availableSlots:', mergeErr);
     }
 
     // Cache control: short (default) or long (for public caching/CDN)
@@ -767,7 +1065,7 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       res.set('Cache-Control', 'public, max-age=60, s-maxage=300');
     }
 
-    res.json({ success: true, appointments, temporaryBlocks });
+  res.json({ success: true, appointments, temporaryBlocks, availableSlots, scheduleTemplates: scheduleTemplatesOut, templateAssignments: templateAssignmentsOut, monthlySchedules: monthlySchedulesOut });
     return;
   } catch (error) {
     console.error('Error in public availability endpoint:', error);

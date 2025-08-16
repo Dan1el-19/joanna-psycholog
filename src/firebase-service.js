@@ -243,46 +243,89 @@ class FirebaseService {
       const data = await resp.json();
       if (!data || !data.success) throw new Error('Invalid server response');
 
-      // server returns { appointments: [...], temporaryBlocks: [...] }
-      // Convert to per-day slot structures expected by calendar: build minimal slot array
-      const slotsByDate = new Map();
-
-      // From appointments
-      (data.appointments || []).forEach(a => {
-        const d = a.confirmedTime || a.preferredTime || null;
-        const date = a.preferredDate || a.confirmedDate || null;
-        if (!date || !d) return;
-        const entry = {
-          date,
-          time: d,
-          isAvailable: false,
-          isBooked: true,
-          isTemporarilyBlocked: false
-        };
-        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
-        slotsByDate.get(date).push(entry);
-      });
-
-      // From temporaryBlocks
-      (data.temporaryBlocks || []).forEach(tb => {
-        const date = tb.date;
-        const entry = {
-          date,
-          time: tb.time,
-          isAvailable: false,
+      // server returns { appointments, temporaryBlocks, availableSlots?, scheduleTemplates?, templateAssignments?, monthlySchedules? }
+      // Preferred: server-provided availableSlots (already computed server-side)
+      if (Array.isArray(data.availableSlots) && data.availableSlots.length > 0) {
+        const result = data.availableSlots.map(s => ({
+          date: s.date,
+          time: s.time,
+          isAvailable: true,
           isBooked: false,
-          isTemporarilyBlocked: true
-        };
-        if (!slotsByDate.has(date)) slotsByDate.set(date, []);
-        slotsByDate.get(date).push(entry);
+          isTemporarilyBlocked: false
+        }));
+        this.slotsCache.set(monthKey, { slots: result, timestamp: Date.now() });
+        return result;
+      }
+
+      // Otherwise: synthesize month slots from scheduleTemplates + templateAssignments + monthlySchedules
+      const appointments = Array.isArray(data.appointments) ? data.appointments : [];
+      const temporaryBlocks = Array.isArray(data.temporaryBlocks) ? data.temporaryBlocks : [];
+
+      // Build lookup sets for booked/blocked times
+      const bookedSet = new Set(); // `${date}|${time}`
+      // Expand each appointment into all covered 30-min slots according to service duration
+      const services = await this.getServices();
+      const serviceDurMap = {};
+      services.forEach(s => { if (s && s.id) serviceDurMap[s.id] = s.duration || 50; });
+      appointments.forEach(a => {
+        const start = a.confirmedTime || a.preferredTime || null;
+        const dateOnly = a.preferredDate || a.confirmedDate || null;
+        const svc = a.service || null;
+        if (!dateOnly || !start) return;
+        const duration = serviceDurMap[svc] || 50;
+        const slotsNeeded = Math.max(1, Math.ceil(duration / 30));
+        const slots = this.getSlotsSlice(start, slotsNeeded);
+        slots.forEach(slotTime => bookedSet.add(`${dateOnly}|${slotTime}`));
       });
 
-      // Flatten into array
-      const result = [];
-  slotsByDate.forEach(arr => result.push(...arr));
+      const tempBlockedSet = new Set();
+      temporaryBlocks.forEach(tb => {
+        if (tb && tb.date && tb.time) tempBlockedSet.add(`${tb.date}|${tb.time}`);
+      });
 
-      this.slotsCache.set(monthKey, { slots: result, timestamp: Date.now() });
-      return result;
+      const templatesById = {};
+      (data.scheduleTemplates || []).forEach(t => {
+        if (t && t.id) templatesById[t.id] = t.schedule || {};
+      });
+
+      const assignments = Array.isArray(data.templateAssignments) ? data.templateAssignments : [];
+      const monthlySchedules = Array.isArray(data.monthlySchedules) ? data.monthlySchedules : [];
+
+      const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const synthesized = [];
+
+      // Choose templateId for the requested month (prefer explicit assignment)
+      let chosenTemplateId = null;
+      const assigned = assignments.find(a => Number(a.year) === Number(year) && Number(a.month) === Number(month));
+      if (assigned && assigned.templateId) chosenTemplateId = assigned.templateId;
+
+      // If no assignment, try monthlySchedules to find a templateId
+      if (!chosenTemplateId && Array.isArray(monthlySchedules) && monthlySchedules.length) {
+        const ms = monthlySchedules.find(m => Number(m.year) === Number(year) && Number(m.month) === Number(month));
+        if (ms && ms.templateId) chosenTemplateId = ms.templateId;
+      }
+
+      const templateSchedule = chosenTemplateId ? (templatesById[chosenTemplateId] || {}) : null;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dow = new Date(year, month - 1, d).getDay();
+        const dayName = days[dow];
+
+        // Use templateSchedule if available, otherwise skip
+        const times = templateSchedule ? (templateSchedule[dayName] || []) : [];
+        if (!Array.isArray(times) || times.length === 0) continue;
+
+        times.forEach(t => {
+          const key = `${dateStr}|${t}`;
+          if (bookedSet.has(key) || tempBlockedSet.has(key)) return;
+          synthesized.push({ date: dateStr, time: t, isAvailable: true, isBooked: false, isTemporarilyBlocked: false });
+        });
+      }
+
+      this.slotsCache.set(monthKey, { slots: synthesized, timestamp: Date.now() });
+      return synthesized;
     } catch (err) {
       console.warn('Month availability fallback failed, falling back to per-day computation', err);
       // Fallback: compute per-day locally by calling getAvailableTimeSlots for each day (keeps previous behavior)

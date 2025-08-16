@@ -1,0 +1,6 @@
+# Ignore compiled artifacts and vendor folders
+functions/lib/**
+functions/node_modules/**
+node_modules/**
+dist/**
+public/**
