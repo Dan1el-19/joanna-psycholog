@@ -15,6 +15,8 @@ import { getAuth } from 'firebase-admin/auth';
 // Initialize Firebase Admin
 initializeApp();
 const db = getFirestore();
+// Temporary debug toggle: set true to enable slot-debug logs in this function during investigation
+const FORCE_DEBUG_SLOTS = true;
 
 // --- Interfaces (Unchanged) ---
 
@@ -255,7 +257,7 @@ export const sendAppointmentConfirmation = onDocumentCreated(
       const clientEmailContent = `
         <h2>Dziękuję za zgłoszenie!</h2>
         <p>Dzień dobry ${augmentedData.name},</p>
-        <p>Otrzymałam Państwa zgłoszenie wizyty. Poniżej znajdują się jego szczegóły. Skontaktuję się z Państwem w ciągu 24 godzin w celu ustalenia ostatecznego terminu spotkania.</p>
+        <p>Otrzymałam zgłoszenie wizyty. Poniżej znajdują się jego szczegóły.</p>
         
         <div class="section section-blue">
           <h3>Szczegóły wizyty</h3>
@@ -1043,18 +1045,97 @@ app.get('/public/availability', async (req: Request, res: Response) => {
       console.warn('Could not compute admin slots for public availability:', adminErr);
     }
 
-    // Merge adminSlots into availableSlots (deduplicate)
+    // Merge adminSlots into availableSlots (deduplicate) BUT avoid reintroducing slots
+    // that are booked or blocked by appointments / temp blocks / monthly blockedSlots.
     try {
+      // Build service duration map to expand appointments into occupied 30-min slots
+      const servicesMapLocal = new Map<string, number>();
+      try {
+        const svcSnap = await db.collection('services').get();
+        svcSnap.docs.forEach(sdoc => {
+  const sdata = sdoc.data() as Record<string, unknown> | null;
+  const dur = (sdata && typeof sdata.duration !== 'undefined') ? Number(sdata.duration) : 50;
+  if (sdoc.id) servicesMapLocal.set(sdoc.id, dur);
+        });
+      } catch {
+        // ignore and fallback to defaults
+      }
+
+      const slotLengthLocal = 30;
+      const allSlotsLocal: string[] = [];
+      for (let hour = 7; hour <= 20; hour++) {
+        allSlotsLocal.push(`${String(hour).padStart(2,'0')}:00`);
+        allSlotsLocal.push(`${String(hour).padStart(2,'0')}:30`);
+      }
+      const slotIndexOfLocal = (t: string) => allSlotsLocal.indexOf(t);
+      const slotAtLocal = (i: number) => (i < 0 || i >= allSlotsLocal.length) ? null : allSlotsLocal[i];
+
+      const bookedSet = new Set<string>();
+      const blockedSet = new Set<string>();
+
+      // Expand appointments
+      (appointments || []).forEach(a => {
+        const dt = String(a.confirmedDate || a.preferredDate || '');
+        const t = String(a.confirmedTime || a.preferredTime || '');
+        const svc = String(a.service || '');
+        if (!dt || !t) return;
+        const duration = servicesMapLocal.get(svc) || 50;
+        const slotsNeeded = Math.max(1, Math.ceil(duration / slotLengthLocal));
+        const startIdx = slotIndexOfLocal(t);
+        if (startIdx === -1) {
+          bookedSet.add(`${dt}|${t}`);
+        } else {
+          for (let i = 0; i < slotsNeeded; i++) {
+            const s = slotAtLocal(startIdx + i);
+            if (s) bookedSet.add(`${dt}|${s}`);
+          }
+          // backward buffer (approx): block previous slots equal to slotsNeeded
+          for (let i = 1; i <= slotsNeeded; i++) {
+            const prev = slotAtLocal(startIdx - i);
+            if (prev) blockedSet.add(`${dt}|${prev}`);
+          }
+          // forward buffer: minimal break 10 minutes
+          const extraBreakSlots = Math.ceil(10 / slotLengthLocal);
+          const endIdx = startIdx + slotsNeeded - 1;
+          for (let i = 1; i <= extraBreakSlots; i++) {
+            const next = slotAtLocal(endIdx + i);
+            if (next) blockedSet.add(`${dt}|${next}`);
+          }
+        }
+      });
+
+      // Temporary blocks
+      (temporaryBlocks || []).forEach(tb => {
+        if (tb && tb.date && tb.time) blockedSet.add(`${tb.date}|${tb.time}`);
+      });
+
+      // monthlySchedules blockedSlots
+      (monthlySchedulesOut || []).forEach(ms => {
+        (ms.blockedSlots || []).forEach(b => {
+          if (b && b.date && b.time) blockedSet.add(`${b.date}|${b.time}`);
+        });
+      });
+
       const existing = new Set(availableSlots.map(s => `${s.date}|${s.time}`));
+      let addedCount = 0;
+  if (FORCE_DEBUG_SLOTS || process.env.DEBUG_SLOTS === '1') {
+        console.log('DEBUG: adminSlots (raw) count=', adminSlots.length);
+        console.log('DEBUG: bookedSet size=', bookedSet.size, 'blockedSet size=', blockedSet.size);
+      }
       adminSlots.forEach(s => {
         const key = `${s.date}|${s.time}`;
+        if (bookedSet.has(key) || blockedSet.has(key)) return; // skip occupied/blocked
         if (!existing.has(key)) {
           availableSlots.push({ date: s.date, time: s.time });
           existing.add(key);
+          addedCount++;
         }
       });
+      if (FORCE_DEBUG_SLOTS || process.env.DEBUG_SLOTS === '1') {
+        console.log('DEBUG: adminSlots merged, addedCount=', addedCount, 'availableSlots total=', availableSlots.length);
+      }
     } catch (mergeErr) {
-      console.warn('Could not merge adminSlots into availableSlots:', mergeErr);
+      console.warn('Could not merge adminSlots into availableSlots safely:', mergeErr);
     }
 
     // Cache control: short (default) or long (for public caching/CDN)

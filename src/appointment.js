@@ -350,11 +350,12 @@ class AppointmentBooking {
     }
     
     try {
-      // Create temporary block for selected slot
+      // Create temporary block for selected slot (pass service id for correct duration validation)
       const blockResult = await firebaseService.createTemporaryBlock(
         selectedDate,
         selectedTime,
-        this.sessionId
+        this.sessionId,
+        selectedService || null
       );
       
       if (blockResult.success) {

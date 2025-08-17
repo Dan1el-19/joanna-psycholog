@@ -57,19 +57,22 @@ class FirebaseService {
    */
   async calculateFullDayAvailability(date) {
     // 1. Fetch all necessary data upfront
-    const [services, appointments, adminSlots] = await Promise.all([
+    const [services, appointments] = await Promise.all([
       this.getServices(),
-      this.getAppointmentsForDate(date),
-      this.getAdminSlotsForDate(date)
+      this.getAppointmentsForDate(date)
     ]);
 
     const allPossibleSlots = this.generateAllTimeSlots();
     const daySchedule = new Map();
 
-    // 2. Initialize the day's schedule with admin-defined working hours
+    // 2. Initialize the day's schedule as permissive: allow starting any service at any slot
+    //    provided subsequent slots are not booked/blocked. This follows the product requirement
+    //    that if slots like 11:00,11:30,12:00 exist and are free, a user may start any service
+    //    at any of those slots (even a 90min service starting at 12:00) as long as no other
+    //    appointment blocks the required slots.
     allPossibleSlots.forEach(time => {
       daySchedule.set(time, {
-        status: adminSlots.includes(time) ? 'free' : 'unavailable',
+        status: 'free',
         appointmentId: null
       });
     });
@@ -109,15 +112,17 @@ class FirebaseService {
         const nextAppointmentTime = bookedStartTimes.find(bookedTime => bookedTime > time);
         if (!nextAppointmentTime) continue;
         
-        for (const service of services) {
-            const serviceDuration = service.duration;
-            const potentialEndTime = this.addMinutesToTime(time, serviceDuration);
+    for (const service of services) {
+      const serviceDuration = service.duration;
+      const potentialEndTime = this.addMinutesToTime(time, serviceDuration);
 
-            if (potentialEndTime === nextAppointmentTime) {
-                currentSlot.status = 'buffer_backward';
-                break;
-            }
-        }
+      // If starting a service at `time` would finish after the next appointment's start,
+      // it would overlap — mark as backward buffer to prevent starting there.
+      if (potentialEndTime > nextAppointmentTime) {
+        currentSlot.status = 'buffer_backward';
+        break;
+      }
+    }
     }
 
     return daySchedule;
@@ -246,13 +251,77 @@ class FirebaseService {
       // server returns { appointments, temporaryBlocks, availableSlots?, scheduleTemplates?, templateAssignments?, monthlySchedules? }
       // Preferred: server-provided availableSlots (already computed server-side)
       if (Array.isArray(data.availableSlots) && data.availableSlots.length > 0) {
-        const result = data.availableSlots.map(s => ({
-          date: s.date,
-          time: s.time,
-          isAvailable: true,
-          isBooked: false,
-          isTemporarilyBlocked: false
-        }));
+        // Build booked/temp-block sets from server data to overlay on provided availableSlots
+        const appointments = Array.isArray(data.appointments) ? data.appointments : [];
+        const temporaryBlocks = Array.isArray(data.temporaryBlocks) ? data.temporaryBlocks : [];
+
+        const services = await this.getServices();
+        const serviceDurMap = {};
+        services.forEach(s => { if (s && s.id) serviceDurMap[s.id] = s.duration || 50; });
+
+        const bookedSet = new Set();
+        appointments.forEach(a => {
+          const start = a.confirmedTime || a.preferredTime || null;
+          const dateOnly = a.preferredDate || a.confirmedDate || null;
+          const svc = a.service || null;
+          if (!dateOnly || !start) return;
+          const duration = serviceDurMap[svc] || 50;
+          const slotsNeeded = Math.max(1, Math.ceil(duration / 30));
+          const slots = this.getSlotsSlice(start, slotsNeeded);
+          slots.forEach(t => bookedSet.add(`${dateOnly}|${t}`));
+        });
+
+        const tempBlockedSet = new Set();
+        temporaryBlocks.forEach(tb => {
+          if (tb && tb.date && tb.time) tempBlockedSet.add(`${tb.date}|${tb.time}`);
+        });
+
+        const result = data.availableSlots.map(s => {
+          const key = `${s.date}|${s.time}`;
+          const isBooked = bookedSet.has(key);
+          const isTempBlocked = tempBlockedSet.has(key);
+
+          // Determine if at least one service can start at this slot
+          let anyServiceFits = false;
+          const checkedServices = [];
+          try {
+            for (const svc of services) {
+              const duration = serviceDurMap[svc.id] || 50;
+              const slotsNeeded = Math.max(1, Math.ceil(duration / 30));
+              const slots = this.getSlotsSlice(s.time, slotsNeeded);
+              if (slots.length < slotsNeeded) {
+                // not enough slots at end of day
+                checkedServices.push({ serviceId: svc.id, duration, slotsNeeded, slotsFound: slots.length, conflicts: ['end_of_day'] });
+                continue;
+              }
+              const conflictSlots = slots.filter(t => bookedSet.has(`${s.date}|${t}`) || tempBlockedSet.has(`${s.date}|${t}`));
+              const conflicts = conflictSlots.length > 0;
+              checkedServices.push({ serviceId: svc.id, duration, slotsNeeded, slots, conflictSlots });
+              if (!conflicts) { anyServiceFits = true; break; }
+            }
+          } catch {
+            // conservative fallback: if something goes wrong, fall back to previous behaviour
+            anyServiceFits = !isBooked && !isTempBlocked;
+          }
+
+          return {
+            date: s.date,
+            time: s.time,
+            isAvailable: anyServiceFits,
+            isBooked: isBooked,
+            isTemporarilyBlocked: isTempBlocked
+          };
+        });
+
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('debugSlots') === '1') {
+          console.log('DEBUG: server provided availableSlots count=', data.availableSlots.length, 'after overlay result=', result.length);
+          console.log('DEBUG: bookedSet size=', bookedSet.size, 'tempBlockedSet size=', tempBlockedSet.size);
+          // Print a sample of booked entries for easier debugging
+          try {
+            console.log('DEBUG: booked entries sample=', Array.from(bookedSet).slice(0,50));
+          } catch { /* noop */ }
+        }
+
         this.slotsCache.set(monthKey, { slots: result, timestamp: Date.now() });
         return result;
       }
@@ -267,7 +336,7 @@ class FirebaseService {
       const services = await this.getServices();
       const serviceDurMap = {};
       services.forEach(s => { if (s && s.id) serviceDurMap[s.id] = s.duration || 50; });
-      appointments.forEach(a => {
+  appointments.forEach(a => {
         const start = a.confirmedTime || a.preferredTime || null;
         const dateOnly = a.preferredDate || a.confirmedDate || null;
         const svc = a.service || null;
@@ -277,6 +346,9 @@ class FirebaseService {
         const slots = this.getSlotsSlice(start, slotsNeeded);
         slots.forEach(slotTime => bookedSet.add(`${dateOnly}|${slotTime}`));
       });
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('debugSlots') === '1') {
+        console.log('DEBUG: synthesized bookedSet size=', bookedSet.size, 'tempBlockedSet size=', tempBlockedSet.size);
+      }
 
       const tempBlockedSet = new Set();
       temporaryBlocks.forEach(tb => {
@@ -971,13 +1043,15 @@ class FirebaseService {
     }
   }
 
-  async createTemporaryBlock(date, time, sessionId) {
+  async createTemporaryBlock(date, time, sessionId, serviceId = null) {
     try {
       await this.cleanupExpiredBlocks();
       await this.removeTemporaryBlock(sessionId);
-      const isAvailable = await this.isTimeSlotAvailableWithDuration(date, time, 'terapia-indywidualna', sessionId); // Check for shortest duration
+      // Use provided serviceId to validate required slots; fallback to default service if not provided
+      const svc = serviceId || 'terapia-indywidualna';
+      const isAvailable = await this.isTimeSlotAvailableWithDuration(date, time, svc, sessionId);
       if (!isAvailable) throw new Error('Time slot is no longer available');
-      
+
       const expiresAt = new Date(Date.now() + this.blockDuration);
       const blockData = { date, time, sessionId, createdAt: Timestamp.now(), expiresAt: Timestamp.fromDate(expiresAt) };
       const docRef = await addDoc(this.temporaryBlocksCollection, blockData);
